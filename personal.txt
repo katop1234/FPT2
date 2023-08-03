@@ -1,0 +1,125 @@
+source /shared/katop1234/miniconda3/bin/activate /shared/katop1234/miniconda3/envs/FPT
+python main.py
+
+Zeta Finance
+
+Project Overview
+- Train a self supervised model on a large corpus of financial data through decoder-only architecture
+- Feed in various historical features like last 30 days volume, last 30-60 days open price, etc. and then
+encode them like in a ViT and just train the model to predict the price after one day (we can easily finetune from
+this for any N days)
+- Data would be normalized to the return wrt to previous day. So instead of price of FB being 90 99 90, it would be 
+0 0.1 -0.1 or whatever for consistency
+- sample every 15 minutes. the tokens will be last 1 day, 2, 4, 8, 16, 32, 64, and then 64 going back to however many
+data points we have.
+- Train a giant decoder model on this data
+- Then, can "distill" it to predict if the price will go up or stay or down (loss is p * log q or whatever). You want to
+  use this, because i think the first task will be too hard, but in the process of training that, it will become very
+   good at the second easier task.
+- For front end, you can then simply see if the predicted value is >0.99 (buy) or <0.01 (sell), so it's super confident
+ (1% margin of error)
+- For actual running, can show the model of a random sample of current stock data and have it predict for each one
+ whether to buy or sell. Or can finetune to specific commodities like USD or crypto option or whatever also.
+ Eventually can come up with something smarter that knows how to sample stocks to find good ones.
+- For now, we can ask it to buy/sell and close the position the next day. That’s all. dont do hft, just try to trade
+ every 1 week. This way you don’f have to worry anout game theoretic effects of having slow equipment and not seeing
+  trades before ohers like if you did every 1 minute or so.
+- Profit!
+- Eventually include arbritrage, so the deep learning model automatically detects when to arb different products even
+ on different markets
+
+Current To-Do:
+- copy over all the FPT code into this so it's much cleaner and easier to use
+- Ok fuck this let's just make it an autoregressive thing that only predicts future price. Go through all the data
+one by one through time, sampling just enough such that a full run takes 7 days? 
+- for data preprocessing, make it percent change from previous day's value for each value
+- for adding time, use time2vec. it's simple. take in a single time like for hour. then have a periodic_linear_transform
+= torch.sin(Linear(1, D/2)) and linear_transform = Linear(1, D/2) and concat them to get a single D length vector
+. Learn the linear stuff. Would be cool to see if you can just learn a single D-len vector using sin(L(x)) * sqrt(|L(x)|) + b
+- plan to add way more window categories, it doesn't make sense to only predict from a single float since way 
+less information. Want maximum context for why a stock is the way it is.
+- Since we normalize all the data wrt to the previous day's value, we forget the original "scale". I.e. $100 or $1000 all become
+percent changes. Figure out a way to include the original price. Maybe you can cross attend the first value of the price 
+onto the learned embedding before feeding it into the decoder (?)
+- Add a transformer embedder once the MLP makes it 512 sequence. Also, can convolution work instead of MLP, altho idk 
+how it works fundamentally.
+- implement MOE (mixture of experts https://arxiv.org/abs/2305.14705).
+- according to cookbook of ssl: 1) large batch size (above 512) may be instable (probably sharp minimizers?)
+2) For large networks, layer-wise dropout (stochastic depth) is helpful especially like 0.5
+- include CLS tokens also everywhere.
+- include model parallelism to get really large models. also figure out how to load the df efficiently so the
+whole thing isn't in memory at once.
+- Add options data also(?) maybe later, can add more modalities as we go on (add crypto, forex etc. eventually)
+- add back ticker loss once you figure out how to get it to work
+- go through the whole model, and if anything is too big, add gradient checkpointing to it. But don't do that early
+ on, only if you need to at the end.
+ - add environment.yml to load this anywhere
+- more indicators to add:
+put call ratio
+volatility index
+bullish percent index
+advance decline line
+high low index
+investor sentiment survey
+- consider changing original embedding to simple linear transform like in vit. experiment between the two. Can try 
+replacing the windowembedder with a transformer... i feel convnet is natural, but people have tried using transformers
+ in time series data successfully before. Pos emb may be tough for long lengths, just hardcode with sinusoidal if you
+  do decide to use.
+- write the code to do backprop based on fb mae
+- add code to store/load from checkpoints
+- tune mask percentage thru grid search at the end
+
+Future Steps:
+- implement model parallelism and implement data parallelism and loader for fpt
+- For ticker embedding, use the same logic as CLIP if that’s doable. I.e. You randomly sample negative examples,
+ and then do some contrastive learning on the tickers. 
+- for scaling the values, you can preprocess them beforehand, with a learnable normalization initialized for each
+category. if you do this at the end, it may create exploding gradients with like 1 billion or something vs the beginning
+- Go through all the data loading/reading and make it as efficient as possible. and loss calculation. try to parallelize it all.
+- Combine price scalars into a single token? Because lots of redundant info in them i feel (do later)
+- Maybe can hook it up to a vqgan that learns tokens for each category, maybe more expensive tho idk
+- idk how to incorporate market data during runtime, maybe if you get a better dataset with other market participants, you can try
+ to mask that out and have it trade, then give it that info and use that somehow (maybe RLHF idk). Just think about it, it should
+  be fine If we’re not doing high frequency trading.
+- have the model trained to predict price in finetuning. Then., freeze the weights and train a aoftmax on the encoded latents
+ to simply predict up ir down, athough it was originally trained to oredict the price. this will give a probability of ip or down,
+  and other is the ev. make it 5% increase as threshold. For example, 0.01% up is not useful.
+- for runtime, can add code to finetune on that day's market data to make it more specialized to perform based on recent activity
+- at the end, to see how much the network really uses each feature, try to get dLoss/dFeature for each feature (but normalized)
+obviously.
+- add sentiment analysis feature. Look at the headlines of forbes, fortune, business insider etc for each day (in the past too), and
+generate a sentiment vector. Financial roberta?
+- You could also pretrain on Math stats proofs to give it priors in that later
+
+Features to include (from GPT):
+1. **Price Data**: This includes the high, low, opening, and closing prices.
+2. **Volume Data**: This refers to the number of shares or contracts traded in a security or market during a given period.
+3. **Volatility**: This can be calculated in a variety of ways, such as using the standard deviation of returns.
+4. **Dividend Yield**: This is the annual dividend payment divided by the market price of the stock.
+5. **Financial Ratios**: Examples include price-to-earnings (P/E), price-to-book (P/B), and price-to-sales (P/S) ratios, among others. 
+6. **Return Data**: This can be calculated in a variety of ways, but commonly used metrics are daily, monthly, or annual returns.
+7. **Earnings Data**: This includes earnings per share (EPS), quarterly earnings growth, and other similar metrics.
+8. **Market Indicators**: These could be overall market index levels, sector ETF prices, or futures prices, for instance.
+also for historical data feature, include the performance of the sector of that stock (and also competitors if possible, alphavantage allows for searching over companies in that industry, so maybe just pick top 5 market cap also, and feed in their last 365 days performance)
+9. **Interest Rates**: The level of various interest rates (like the 10-year Treasury rate) can impact the valuation of stocks.
+10. **Macroeconomic Data**: Information like GDP growth, unemployment rate, and inflation can impact stock prices.
+Maybe for variables like unemployment and gdp growth which are highly correlated and dont vary day to day, just concat them along D-axis. i.e. 0-255 is the value for unemployment, 256-511 is GDP
+11. is there a way to get a sentiment analysis metric?
+- Using additional technical indicators like Moving Averages, RSI, MACD (probably need alphavantage) if they are not redundant
+
+possible sources:
+Alpha Vantage: Alpha Vantage offers free APIs for historical and real-time data on stocks, forex, and cryptocurrencies, as well as technical indicators, sector performances, and other financial metrics. It provides both free and premium tiers. It covers most of your listed requirements like price data, volume data, volatility (through technical indicators), return data, financial ratios, earnings data, and some market indicators. It also provides some basic macroeconomic data.
+
+Quandl: Quandl offers a vast collection of financial, economic, and alternative data that spans over 400,000 datasets from over 400 sources. It also includes a range of premium datasets, some of which might require additional subscription fees. It provides good coverage for price data, return data, volume data, and a variety of financial ratios. Quandl also offers macroeconomic data, including interest rates and GDP.
+
+Intrinio: Intrinio provides access to many different types of securities data, including financial statement data, news, and other alternative datasets. It covers some of your requirements like financial ratios, earnings data, and a wide array of macroeconomic data.
+
+IEX Cloud: IEX Cloud provides real-time & historical stock and market data, as well as a solid set of financial tools. They also offer a free tier, which is a plus.
+
+Finbox: Finbox is another good API service for fetching various types of financial data, including financial ratios, earnings data, and market data. It's a bit more focused on fundamental analysis, so it may not cover all your needs, but it's a good source for deep company data.
+
+FRED (Federal Reserve Economic Data): For macroeconomic data, FRED provides a vast range of time-series data which includes interest rates, GDP, unemployment rate, etc.
+
+News API or GDELT: For sentiment analysis, you could consider using a news API to fetch recent news articles about a company and then use a Natural Language Processing (NLP) service like Google's Natural Language API, IBM Watson, or Microsoft Azure Text Analytics to perform sentiment analysis on the news articles.
+
+Twelve Data: Twelve Data offers a wide range of financial data, including stock market data, forex data, cryptocurrency data, and more. It has over 100 technical indicators and chart types.
