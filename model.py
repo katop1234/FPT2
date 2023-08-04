@@ -83,7 +83,8 @@ class FPT(nn.Module):
         self.df = df
         df_x = df.sample(self.batch_size)
         
-        # Initialize dictionary with empty Pandas Series
+        gt = 0. # TODO implement this
+        
         all_data = {category: pd.Series(dtype='float64') for category in utils.get_base_categories()}
         for category in utils.get_base_categories():
             # Calculate returns wrt to previous value (100, 110, 99) -> (1, 1.1, 0.9)
@@ -119,7 +120,7 @@ class FPT(nn.Module):
         
         x = torch.stack(x, dim=-1)
         x = x.permute(0, 2, 1)  # [batch_size, embed_dim, features] -> [batch_size, features, embed_dim]
-        return x
+        return x, gt
             
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
