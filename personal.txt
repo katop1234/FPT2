@@ -10,7 +10,7 @@ encode them like in a ViT and just train the model to predict the price after on
 this for any N days)
 - Data would be normalized to the return wrt to previous day. So instead of price of FB being 90 99 90, it would be 
 0 0.1 -0.1 or whatever for consistency
-- sample every 15 minutes. the tokens will be last 1 day, 2, 4, 8, 16, 32, 64, and then 64 going back to however many
+- sample every 15 minutes. the tokens will be last 1 day, 2, 4, 8, 16, 32, 64, 128, 256, and then 256 going back to however many
 data points we have.
 - Train a giant decoder model on this data
 - Then, can "distill" it to predict if the price will go up or stay or down (loss is p * log q or whatever). You want to
@@ -29,10 +29,11 @@ data points we have.
  on different markets
 
 Current To-Do:
-- copy over all the FPT code into this so it's much cleaner and easier to use
-- Ok fuck this let's just make it an autoregressive thing that only predicts future price. Go through all the data
-one by one through time, sampling just enough such that a full run takes 7 days? 
-- for data preprocessing, make it percent change from previous day's value for each value
+- figure out how to embed the window data into the embed_dim tensors with minimal computation. If there isn't a value, just 
+ignore that token with attention mask 
+- Just keep the sequence length static so we can use checkpointing. figure out how to feed in a separate attention mask
+of 0s and 1s which multiply with the attention output
+- for data preprocessing, make it percent change from previous day's value for each value, but also store the first value
 - for adding time, use time2vec. it's simple. take in a single time like for hour. then have a periodic_linear_transform
 = torch.sin(Linear(1, D/2)) and linear_transform = Linear(1, D/2) and concat them to get a single D length vector
 . Learn the linear stuff. Would be cool to see if you can just learn a single D-len vector using sin(L(x)) * sqrt(|L(x)|) + b

@@ -49,7 +49,7 @@ def get_text_categories():
     out = ["Ticker"]
     return out
 
-def get_window_categories():
+def get_floats_categories():
     raise NotImplementedError("get_window_categories() is not implemented yet.")
     categories = ["TypicalPrice", "Volume"]
     days_back = [10, 20, 40, 80, 160, 320, 640, 1280]
@@ -83,7 +83,6 @@ def get_rank():
         return 0
     return dist.get_rank()
 
-
 def is_main_process():
     return get_rank() == 0
 
@@ -93,6 +92,28 @@ def get_num_days(window_category_name):
     end = int(parts[-2])
     num_days = end - start
     return num_days
+
+def get_time2vec_categories():
+    categories = ['Year', 'Month', 'Day', 'Weekday', 'Hour', 'Minute', 'Second']
+    return categories
+
+def get_text_categories():
+    out = ["Ticker"]
+    return out
+
+def get_window_categories():
+    categories = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+    days_back = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1536, 2048, 2584, 3072]
+    output = []
+
+    for cat in categories:
+        for i in range(len(days_back)):
+            if i == 0:
+                output.append(f"{cat}_0_{days_back[i]}_days")
+            else:
+                output.append(f"{cat}_{days_back[i-1]}_{days_back[i]}_days")
+
+    return output
     
 def get_category_name(window_category_name):
     parts = window_category_name.split('_')
