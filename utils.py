@@ -130,10 +130,17 @@ def get_floats_categories():
 
     return output
 
-def get_base_category_name(window_category_name):
+def parse_category(window_category_name):
     parts = window_category_name.split('_')
-    category = parts[0]
-    return category
+    feature = parts[0]
+    date_range = (int(parts[2]), int(parts[3]))
+    return feature, date_range
+
+def get_base_category_name(window_category_name):
+    return parse_category(window_category_name)[0]
+
+def get_window_range(window_category_name):
+    return parse_category(window_category_name)[1]
 
 def percent_error(gt_val, pred_val):
     assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"

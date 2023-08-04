@@ -24,8 +24,6 @@ class FPT(nn.Module):
         self.categories_lookup["datetime"] = utils.get_time2vec_categories()
         self.all_categories = self.categories_lookup["floats"] + self.categories_lookup["text"] + self.categories_lookup["datetime"]
         self.seq_len = len(self.all_categories) + 1 # +1 for the cls token
-        
-        self.df = None
 
         ## Get embeddings (original -> input embedding)
         self.embeddings_lookup = nn.ModuleDict()
@@ -59,9 +57,6 @@ class FPT(nn.Module):
             
             self.embeddings_lookup[category] = time2vec_embedding
         
-        # If we don't have values, don't do attention on it, but still need to add them all so the input seq is fixed
-        self.attention_mask = torch.ones(self.seq_len).bool().expand(self.batch_size, -1).cuda()
-
         ## Get categorical embeddings and mask tokens to add to input embedding
         self.cat_embeddings = CategoryEmbedding(self.all_categories, embed_dim) # (same thing as pos emb for vit)
         
@@ -79,76 +74,93 @@ class FPT(nn.Module):
         
         self.predictor = ContinuousReverseEmbedding(self.embed_dim, 1)
     
-    def embed_original(self, df):
-        self.df = df
-        df_x = df.sample(self.batch_size)
-        
-        gt = 0. # TODO implement this
-        
-        all_data = {category: pd.Series(dtype='float64') for category in utils.get_base_categories()}
-        for category in utils.get_base_categories():
-            # Calculate returns wrt to previous value (100, 110, 99) -> (1, 1.1, 0.9)
-            temp = df_x[category].pct_change() + 1
-            temp.fillna(1, inplace=True) # By default the first value becomes nan bc no reference
-            all_data[category] = temp
-
-        # With the data from above, index out the correct days and then get the embedding for that
-        # If we don't have the values for that window (for example if we have up to 600 days, it won't work for Volume_Last_512_1024_days) then
-        # add zeros there instead
-        x = []
-        self.attention_mask = []
-        for category_name in self.all_categories:
-            category = utils.get_base_category_name(category_name)
-            assert category in utils.get_base_categories(), f"Got category: {category}, category_name: {category_name}"
-            parts = category_name.split('_')
-            start, end = int(parts[-3]), int(parts[-2])
-            # TODO implement the logic to get the correct data for each category
-            if end > len(all_data[category]): # TODO how do we correspond "end" to the correct days? since num_rows != num_days
-                embedded_data = torch.empty(self.batch_size, self.embed_dim).cuda()
-                self.attention_mask.append(False)
-            else:
-                # TODO for indexing the days, just manually index each day to make sure it's within range, so there 
-                # isn't an insertion/deletion mutation of the data that messes up everything
-                # the code in the original get_window_data is good for this. use the builtin timedelta etc.
-                
-                # TODO figure out how to index the attention mask properly also, since we need it to be a 2d tensor along 
-                # batch and N
-                embedded_data = self.embeddings_lookup[category_name](all_data[category])
-                embedded_data += self.cat_embeddings(category_name)
-                self.attention_mask.append(True)
-            x.append(embedded_data)
-        
-        x = torch.stack(x, dim=-1)
-        x = x.permute(0, 2, 1)  # [batch_size, embed_dim, features] -> [batch_size, features, embed_dim]
-        return x, gt
-    
+    # TODO break into helpers
     def embed_original(self, df):
         # - sample the df for batch size rows
         df_x = df.sample(self.batch_size)
-        gt = df_x["Close"].pct_change() + 1
+        gt = df_x["gt"].values # Percent change in TypicalPrice wrt previous day
         
-        # now for each row:
-        # - get the data for each category
-        # - within each category, index out the correct days and normalize by returns
-        # - embed them
-        # - update the attention mask
-        # - add the category embedding to the data embedding
-        # - stack the data embeddings
-        return
+        # Copy DataFrame and set index on the copy
+        df_indexed = df.copy().set_index(['Date', 'Ticker'])
+
+        # These will hold our results
+        x = []
+        attention_mask = []
+
+        # Iterate over rows in df_x
+        for index, row in df_x.iterrows():
+            # These will hold the data for the current row
+            row_data = []
+            row_mask = []
+
+            # Iterate over categories
+            for category in utils.get_floats_categories():
+                # Split category name to get base category and timeframe
+                base_category, start, end = category.split('_')[0], int(category.split('_')[2]), int(category.split('_')[3])
+
+                # Adjust start date to start-1
+                start -= 1
+
+                # Calculate start and end dates
+                start_date = index[0] - pd.DateOffset(days=start, unit='B')
+                end_date = index[0] - pd.DateOffset(days=end, unit='B')
+
+                # Check if data exists in date range
+                if (start_date, index[1]) in df_indexed.index and (end_date, index[1]) in df_indexed.index:
+                    # Get data in date range
+                    data = df_indexed.loc[start_date:end_date, index[1]][base_category].values
+
+                    # Calculate percentage changes
+                    returns = (data[1:] - data[:-1]) / data[:-1]
+
+                    # Get category embedding
+                    category_embedding = self.embeddings[category](returns) + self.cat_embeddings[category]
+
+                    # Add True to row_mask
+                    row_mask.append(True)
+                else:
+                    # Create a zero tensor for category embedding
+                    category_embedding = torch.zeros(self.embed_dim)
+
+                    # Add False to row_mask
+                    row_mask.append(False)
+
+                # Add to row data
+                row_data.append(category_embedding)
+
+            # Convert row_data to a 2D tensor and add to category data
+            x.append(torch.stack(row_data))
+
+            # Convert row_mask to a 1D tensor and add to attention_mask
+            attention_mask.append(torch.tensor(row_mask))
+
+        # Convert category_data to a 3D tensor
+        x = torch.stack(x)
+        x = self.append_cls(x)
+
+        # Add True to each row in attention_mask to account for the [CLS] token
+        attention_mask = [torch.cat([torch.tensor(True), row]) for row in attention_mask]
+
+        # Convert attention_mask to a 2D tensor
+        attention_mask = torch.stack(attention_mask)
+        
+        assert x.shape == (self.batch_size, self.seq_len, self.embed_dim)
+        assert attention_mask.shape == (self.batch_size, self.seq_len)
+        assert gt.shape == (self.batch_size,)
+
+        return x, attention_mask, gt
             
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat([cls_token, x], dim=1)
-        self.attention_mask = [True] + self.attention_mask
         return x
     
-    def forward_decoder(self, x):
-        x = self.append_cls(x)
+    def forward_decoder(self, x, attention_mask=None):
         x = self.decoder_input_proj(x)
         for blk in self.decoder_blocks:
-            decoded_x = blk(decoded_x)
-        decoded_x = self.decoder_norm(decoded_x)
-        cls_token = decoded_x[:, 0, :]
+            x = blk(x, attention_mask)
+        x = self.decoder_norm(x)
+        cls_token = x[:, 0, :]
         return cls_token
     
     def forward_loss(self, cls_token, gt):
@@ -157,8 +169,8 @@ class FPT(nn.Module):
         return loss
     
     def forward(self, df):
-        x, gt = self.embed_original(df)
-        cls_token = self.forward_decoder(x)
+        x, attention_mask, gt = self.embed_original(df)
+        cls_token = self.forward_decoder(x, attention_mask)
         loss = self.forward_loss(cls_token, gt)
         return loss
         
