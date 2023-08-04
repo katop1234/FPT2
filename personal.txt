@@ -31,9 +31,9 @@ data points we have.
 Current To-Do:
 - figure out how to embed the window data into the embed_dim tensors with minimal computation. If there isn't a value, just 
 ignore that token with attention mask 
+- for data preprocessing, make it percent change from previous day's value for each value, but also store the first value
 - Just keep the sequence length static so we can use checkpointing. figure out how to feed in a separate attention mask
 of 0s and 1s which multiply with the attention output
-- for data preprocessing, make it percent change from previous day's value for each value, but also store the first value
 - for adding time, use time2vec. it's simple. take in a single time like for hour. then have a periodic_linear_transform
 = torch.sin(Linear(1, D/2)) and linear_transform = Linear(1, D/2) and concat them to get a single D length vector
 . Learn the linear stuff. Would be cool to see if you can just learn a single D-len vector using sin(L(x)) * sqrt(|L(x)|) + b

@@ -1,7 +1,9 @@
 from torch import nn
 import torch
 import utils
-from classes import TransformerBlock, ContinuousReverseEmbedding, NegativeSamplingLoss, TickerEmbedding, ContinuousEmbedding, CategoryEmbedding
+from classes import (
+    TransformerBlock, ContinuousReverseEmbedding, Time2VecEmbedding, 
+    TickerEmbedding, ContinuousEmbedding, CategoryEmbedding)
 import numpy as np
 import pandas as pd
 
@@ -22,6 +24,8 @@ class FPT(nn.Module):
         self.categories_lookup["time2vec"] = utils.get_time2vec_categories()
         self.all_categories = self.categories_lookup["floats"] + self.categories_lookup["text"] + self.categories_lookup["time2vec"]
         
+        self.seq_len = len(self.all_categories) + 1 # +1 for the cls token
+        
         self.df = None
 
         ## Get embeddings (original -> input embedding)
@@ -37,14 +41,32 @@ class FPT(nn.Module):
         self.ticker_embedder = TickerEmbedding(ticker_list, self.embed_dim)
         self.embeddings_lookup["Ticker"] = self.ticker_embedder
         
-        ## Attention masking
-        # If we don't have values, don't do attention on it, but still need to add it so the input seq is fixed
-        self.missing_token = nn.Parameter(torch.zeros(self.embed_dim)) 
-        self.attention_mask = [True * len(self.all_categories)]
+        # Encode the current datetime as a vector
+        for category in self.categories_lookup["time2vec"]:
+            if category == "Year":
+                time2vec_embedding = ContinuousEmbedding(1, self.embed_dim) # not periodic
+            elif category == "Month":
+                time2vec_embedding = Time2VecEmbedding(12, self.embed_dim)
+            elif category == "Day":
+                time2vec_embedding = Time2VecEmbedding(31, self.embed_dim)
+            elif category == "Weekday":
+                time2vec_embedding = Time2VecEmbedding(7, self.embed_dim)
+            elif category == "Hour":
+                time2vec_embedding = Time2VecEmbedding(24, self.embed_dim)
+            elif category == "Minute":
+                time2vec_embedding = Time2VecEmbedding(60, self.embed_dim)
+            else:
+                raise ValueError(f"Time2vec Category {category} not recognized")
+            
+            self.embeddings_lookup[category] = time2vec_embedding
+        
+        # If we don't have values, don't do attention on it, but still need to add them all so the input seq is fixed
+        self.attention_mask = torch.ones(self.seq_len).bool().expand(self.batch_size, -1).cuda()
 
         ## Get categorical embeddings and mask tokens to add to input embedding
         self.cat_embeddings = CategoryEmbedding(self.all_categories, embed_dim) # (same thing as pos emb for vit)
         
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)) * 0.02
         self.decoder_input_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.decoder_norm = nn.LayerNorm(self.embed_dim)
         self.decoder_blocks = nn.ModuleList(
@@ -56,115 +78,70 @@ class FPT(nn.Module):
             ]
         )
         
-        ## Reverse embed decoded latent into original value
-        self.predictor_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.reverse_embeddings = nn.ModuleDict()
-
-        for category, feature_list in self.categories_lookup.items():
-            if category == 'floats':
-                for feature in feature_list:
-                    num_days = utils.get_num_days(feature)
-                    self.reverse_embeddings[feature] = ContinuousReverseEmbedding(self.embed_dim, num_days)
-            elif category == 'text':
-                for feature in feature_list:  # it should only be 'Ticker'
-                    continue # TODO add once we know how to do this
-                    self.reverse_embeddings[feature] = ContinuousReverseEmbedding(self.embed_dim, self.ticker_embedder.embed_dim)
-        
-                # self.ticker_loss = NegativeSamplingLoss(self.ticker_embedder)
-                
-        # floats category lookup to get the gt for loss calculation
-        self.gtvalue_lookup = dict()
-        
-    def get_window_data(self, df_x, category_name):
-        raise NotImplementedError
-        '''
-        Category name is in the format of "TypicalPrice_Last_0_10_days or Volume_Last_20_40_days"
-        We need to find the df corresponding to the ticker in each row, and then append that list of values for each row
-        '''
-        # parse the window range from the category_name
-        window_start, window_end = map(int, category_name.split('_')[-3:-1])
-
-        # initialize empty list to collect data tensors
-        tensors_list = []
-
-        # convert df_x date to datetime format
-        df_x['Date'] = pd.to_datetime(df_x['Date'])
-
-        for idx, row in df_x.iterrows():
-            ticker, current_date = row['Ticker'], row['Date']
-
-            # load the data for this ticker
-            df_ticker = utils.read(f"ticker_data/{ticker}_data.ser")
-            
-            df_ticker['Date'] = pd.to_datetime(df_ticker['Date'])
-            df_ticker.set_index('Date', inplace=True)
-
-            # calculate the start and end dates
-            start_date = current_date - pd.Timedelta(days=window_end)
-            end_date = current_date - pd.Timedelta(days=window_start) - pd.Timedelta(days=1)  # subtract 1 day to exclude end_date
-
-            # create the windowed data
-            window_data = df_ticker.loc[start_date:end_date]  # slice with dates
-            window_data = window_data[category_name.split('_')[0]]
-
-            # Reindex to a complete date range and fill missing values
-            all_dates = pd.date_range(start=start_date, end=end_date)
-            window_data = window_data.reindex(all_dates, fill_value=utils.MISSING_VALUE)
-
-            # convert to torch tensor and append to list
-            tensor_data = torch.tensor(window_data.values, dtype=torch.float32)
-            tensors_list.append(tensor_data)
-
-        # concatenate all tensors along the batch dimension
-        category_data = torch.stack(tensors_list, dim=0).cuda()
-
-        return category_data
+        self.predictor = ContinuousReverseEmbedding(self.embed_dim, 1)
     
     def embed_original(self, df):
-        '''
-        Preprocess, mask 15% of inputs and get data tensor of embeddings x from the df
-        1 is masked, 0 if not masked
-        '''
         self.df = df
         df_x = df.sample(self.batch_size)
         
-        x = []
-        all_categories = self.all_categories
+        # For each base category, get all the data we have on it
+        all_data = {category: [] for category in utils.get_base_categories()}
+        for category in utils.get_base_categories():
+            all_data[category] = df_x[category]
         
-        for category_name in all_categories:
-            if category_name in self.categories_lookup["floats"]:
-                # category_data = self.get_window_data(df_x, category_name)
-                
-                # get all data for this category
-                # 
-                pass
-            elif category_name in self.categories_lookup["text"]:
-                category_data = df_x[category_name]
+        # With the data from above, index out the correct days and then get the embedding for that
+        # If we don't have the values for that window (for example if we have up to 600 days, it won't work for Volume_Last_512_1024_days) then
+        # add zeros there instead
+        x = []
+        self.attention_mask = []
+        for category_name in self.all_categories:
+            category = utils.get_base_category_name(category_name)
+            assert category in utils.get_base_categories(), f"Got category: {category}, category_name: {category_name}"
+            parts = category_name.split('_')
+            start, end = int(parts[-3]), int(parts[-2])
+            # TODO implement the logic to get the correct data for each category
+            if end > len(all_data[category]): # TODO how do we correspond "end" to the correct days?
+                embedded_data = torch.empty(self.batch_size, self.embed_dim).cuda()
+                self.attention_mask.append(False)
             else:
-                raise ValueError(f"Category {category_name} not recognized")
-
-            embedded_data = self.embeddings_lookup[category_name](category_data)
-            embedded_data += self.cat_embeddings[category_name]
+                # TODO for indexing the days, just manually index each day to make sure it's within range, so there 
+                # isn't an insertion/deletion mutation of the data that messes up everything
+                # the code in the original get_window_data is good for this. use the builtin timedelta etc.
+                
+                # TODO figure out how to index the attention mask properly also, since we need it to be a 2d tensor along 
+                # batch and N
+                embedded_data = self.embeddings_lookup[category_name](all_data[category])
+                embedded_data += self.cat_embeddings(category_name)
+                self.attention_mask.append(True)
             x.append(embedded_data)
-
+        
         x = torch.stack(x, dim=-1)
         x = x.permute(0, 2, 1)  # [batch_size, embed_dim, features] -> [batch_size, features, embed_dim]
-
+        return x
+            
+    def append_cls(self, x):
+        cls_token = self.cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat([cls_token, x], dim=1)
+        self.attention_mask = [True] + self.attention_mask
         return x
     
-    def forward_loss(self, pred_lookup):
-        loss = 0.
-        
-        self.gt_value_lookup = dict()
-        self.df = None
-        
+    def forward_decoder(self, x):
+        x = self.append_cls(x)
+        x = self.decoder_input_proj(x)
+        for blk in self.decoder_blocks:
+            decoded_x = blk(decoded_x)
+        decoded_x = self.decoder_norm(decoded_x)
+        cls_token = decoded_x[:, 0, :]
+        return cls_token
+    
+    def forward_loss(self, cls_token, gt):
+        pred = self.predictor(cls_token)
+        loss = utils.mean_squared_error(gt, pred)
         return loss
     
-    def forward(self, df_x):
-        x = self.embed_original(df_x)
-        decoded_x = self.forward_decoder(x)
-        pred_lookup = self.reverse_embed_to_original(decoded_x)
-        loss = self.forward_loss(pred_lookup)
-        # true_predictions = self.get_predictions(x_pred_dict) # Normalizing undone
-        return x, loss
+    def forward(self, df):
+        x, gt = self.embed_original(df)
+        cls_token = self.forward_decoder(x)
+        loss = self.forward_loss(cls_token, gt)
+        return loss
         

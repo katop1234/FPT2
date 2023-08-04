@@ -94,15 +94,19 @@ def get_num_days(window_category_name):
     return num_days
 
 def get_time2vec_categories():
-    categories = ['Year', 'Month', 'Day', 'Weekday', 'Hour', 'Minute', 'Second']
+    categories = ['Year', 'Month', 'Day', 'Weekday', 'Hour', 'Minute']
     return categories
 
 def get_text_categories():
     out = ["Ticker"]
     return out
 
-def get_window_categories():
+def base_categories():
     categories = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+    return categories
+
+def get_floats_categories():
+    categories = base_categories()
     days_back = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1536, 2048, 2584, 3072]
     output = []
 
@@ -114,8 +118,8 @@ def get_window_categories():
                 output.append(f"{cat}_{days_back[i-1]}_{days_back[i]}_days")
 
     return output
-    
-def get_category_name(window_category_name):
+
+def get_base_category_name(window_category_name):
     parts = window_category_name.split('_')
     category = parts[0]
     return category
