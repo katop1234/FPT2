@@ -23,7 +23,6 @@ class FPT(nn.Module):
         self.categories_lookup["text"] = utils.get_text_categories()
         self.categories_lookup["time2vec"] = utils.get_time2vec_categories()
         self.all_categories = self.categories_lookup["floats"] + self.categories_lookup["text"] + self.categories_lookup["time2vec"]
-        
         self.seq_len = len(self.all_categories) + 1 # +1 for the cls token
         
         self.df = None
@@ -81,6 +80,7 @@ class FPT(nn.Module):
         self.predictor = ContinuousReverseEmbedding(self.embed_dim, 1)
     
     def embed_original(self, df):
+        # TODO preprocess the year column to subtract from 1900 and then divide by 100
         self.df = df
         df_x = df.sample(self.batch_size)
         
