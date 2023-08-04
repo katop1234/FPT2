@@ -43,7 +43,7 @@ class FPT(nn.Module):
         # Encode the current datetime as a vector
         for category in self.categories_lookup["time2vec"]:
             if category == "Year":
-                time2vec_embedding = ContinuousEmbedding(1, self.embed_dim) # not periodic
+                time2vec_embedding = ContinuousEmbedding(1, self.embed_dim, bias=1900, scale=100) # not periodic
             elif category == "Month":
                 time2vec_embedding = Time2VecEmbedding(12, self.embed_dim)
             elif category == "Day":

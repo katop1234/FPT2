@@ -26,7 +26,7 @@ up/stay/down may work also
  on different markets
 
 To-Do for the MVP:
-- normalize data to be returns. and preprocess the year column to subtract from 1900 and then divide by 100
+- normalize data to be returns.
 - for data preprocessing, make it percent change from previous day's value for each value
 - make the embedder versatile as possible with helper functions so that it works for any dataset with various input types
 - figure out how to update the attention mask to feed into the transformer
