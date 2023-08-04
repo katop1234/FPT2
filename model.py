@@ -99,7 +99,7 @@ class FPT(nn.Module):
             parts = category_name.split('_')
             start, end = int(parts[-3]), int(parts[-2])
             # TODO implement the logic to get the correct data for each category
-            if end > len(all_data[category]): # TODO how do we correspond "end" to the correct days?
+            if end > len(all_data[category]): # TODO how do we correspond "end" to the correct days? since num_rows != num_days
                 embedded_data = torch.empty(self.batch_size, self.embed_dim).cuda()
                 self.attention_mask.append(False)
             else:

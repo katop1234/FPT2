@@ -30,9 +30,10 @@ To-Do for the MVP:
 - for data preprocessing, make it percent change from previous day's value for each value
 - make the embedder versatile as possible with helper functions so that it works for any dataset with various input types
 - figure out how to update the attention mask to feed into the transformer
-- add environment.yml to load this anywhere
-- add backprop code
+- add main.py 
+- add backprop code in engine_train.py
 - add code to store/load from checkpoints
+- add environment.yml to load this anywhere
 
 Future Steps:
 - Since we normalize all the data wrt to the previous day's value, we forget the original "scale". I.e. $100 or $1000 all become
