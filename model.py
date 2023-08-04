@@ -121,6 +121,18 @@ class FPT(nn.Module):
         x = torch.stack(x, dim=-1)
         x = x.permute(0, 2, 1)  # [batch_size, embed_dim, features] -> [batch_size, features, embed_dim]
         return x, gt
+    
+    def embed_original(self, df):
+        # - sample the df for batch size rows
+        # now for each row:
+        # - get the gt
+        # - get the data for each category
+        # - within each category, index out the correct days and normalize by returns
+        # - embed them
+        # - update the attention mask
+        # - add the category embedding to the data embedding
+        # - stack the data embeddings
+        return
             
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)

@@ -119,8 +119,8 @@ def get_floats_categories():
     power_of_2 = 8
     num_mults = 12
     days_back = [2**i for i in range(0, power_of_2+1)] + [2**power_of_2 * (i+1) for i in range(1, num_mults)]
+    
     output = []
-
     for cat in categories:
         for i in range(len(days_back)):
             if i == 0:
