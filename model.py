@@ -80,7 +80,6 @@ class FPT(nn.Module):
         self.predictor = ContinuousReverseEmbedding(self.embed_dim, 1)
     
     def embed_original(self, df):
-        # TODO preprocess the year column to subtract from 1900 and then divide by 100
         self.df = df
         df_x = df.sample(self.batch_size)
         

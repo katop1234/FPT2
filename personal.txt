@@ -5,19 +5,16 @@ Zeta Finance
 
 Project Overview
 - Train a self supervised model on a large corpus of financial data through decoder-only architecture
-- Feed in various historical features like last 30 days volume, last 30-60 days open price, etc. and then
+- Feed in various historical features like last 32-64 days volume, last 64-128 days open price, etc. and then
 encode them like in a ViT and just train the model to predict the price after one day (we can easily finetune from
 this for any N days)
 - Data would be normalized to the return wrt to previous day. So instead of price of FB being 90 99 90, it would be 
 0 0.1 -0.1 or whatever for consistency
-- sample every 15 minutes. the tokens will be last 1 day, 2, 4, 8, 16, 32, 64, 128, 256, and then 256 going back to however many
+- sample every 15 minutes. the tokens will be last 1 day, 2, 4, 8, 16, 32, 64, 128, 256, 512 and then 512 going back to however many
 data points we have.
-- Train a giant decoder model on this data
-- Then, can "distill" it to predict if the price will go up or stay or down (loss is p * log q or whatever). You want to
-  use this, because i think the first task will be too hard, but in the process of training that, it will become very
-   good at the second easier task.
-- For front end, you can then simply see if the predicted value is >0.99 (buy) or <0.01 (sell), so it's super confident
- (1% margin of error)
+- Train a giant decoder model on this data as regression for expected return after 1 day (after doing this, it should easily be fine-
+tunable for any window like 1 week or 4 weeks if that's better. but this is a good start). Doing classification on 
+up/stay/down may work also
 - For actual running, can show the model of a random sample of current stock data and have it predict for each one
  whether to buy or sell. Or can finetune to specific commodities like USD or crypto option or whatever also.
  Eventually can come up with something smarter that knows how to sample stocks to find good ones.
@@ -28,33 +25,22 @@ data points we have.
 - Eventually include arbritrage, so the deep learning model automatically detects when to arb different products even
  on different markets
 
-Current To-Do:
-- figure out how to embed the window data into the embed_dim tensors with minimal computation. If there isn't a value, just 
-ignore that token with attention mask 
-- for data preprocessing, make it percent change from previous day's value for each value, but also store the first value
-- Just keep the sequence length static so we can use checkpointing. figure out how to feed in a separate attention mask
-of 0s and 1s which multiply with the attention output
-- for adding time, use time2vec. it's simple. take in a single time like for hour. then have a periodic_linear_transform
-= torch.sin(Linear(1, D/2)) and linear_transform = Linear(1, D/2) and concat them to get a single D length vector
-. Learn the linear stuff. Would be cool to see if you can just learn a single D-len vector using sin(L(x)) * sqrt(|L(x)|) + b
-- plan to add way more window categories, it doesn't make sense to only predict from a single float since way 
-less information. Want maximum context for why a stock is the way it is.
+To-Do for the MVP:
+- normalize data to be returns. and preprocess the year column to subtract from 1900 and then divide by 100
+- for data preprocessing, make it percent change from previous day's value for each value
+- make the embedder versatile as possible with helper functions so that it works for any dataset with various input types
+- figure out how to update the attention mask to feed into the transformer
+- add environment.yml to load this anywhere
+- add backprop code
+- add code to store/load from checkpoints
+
+Future Steps:
 - Since we normalize all the data wrt to the previous day's value, we forget the original "scale". I.e. $100 or $1000 all become
 percent changes. Figure out a way to include the original price. Maybe you can cross attend the first value of the price 
 onto the learned embedding before feeding it into the decoder (?)
-- Add a transformer embedder once the MLP makes it 512 sequence. Also, can convolution work instead of MLP, altho idk 
-how it works fundamentally.
 - implement MOE (mixture of experts https://arxiv.org/abs/2305.14705).
-- according to cookbook of ssl: 1) large batch size (above 512) may be instable (probably sharp minimizers?)
-2) For large networks, layer-wise dropout (stochastic depth) is helpful especially like 0.5
-- include CLS tokens also everywhere.
-- include model parallelism to get really large models. also figure out how to load the df efficiently so the
-whole thing isn't in memory at once.
-- Add options data also(?) maybe later, can add more modalities as we go on (add crypto, forex etc. eventually)
-- add back ticker loss once you figure out how to get it to work
-- go through the whole model, and if anything is too big, add gradient checkpointing to it. But don't do that early
- on, only if you need to at the end.
- - add environment.yml to load this anywhere
+- implement model parallelism and implement data parallelism and loader for fpt
+- write the code to do backprop based on fb mae
 - more indicators to add:
 put call ratio
 volatility index
@@ -62,35 +48,24 @@ bullish percent index
 advance decline line
 high low index
 investor sentiment survey
-- consider changing original embedding to simple linear transform like in vit. experiment between the two. Can try 
-replacing the windowembedder with a transformer... i feel convnet is natural, but people have tried using transformers
- in time series data successfully before. Pos emb may be tough for long lengths, just hardcode with sinusoidal if you
-  do decide to use.
-- write the code to do backprop based on fb mae
-- add code to store/load from checkpoints
-- tune mask percentage thru grid search at the end
-
-Future Steps:
-- implement model parallelism and implement data parallelism and loader for fpt
+- Add options data also(?) maybe later, can add more modalities as we go on (add crypto, forex etc. eventually)
+- according to cookbook of ssl: 1) large batch size (above 512) may be instable (probably sharp minimizers?)
+2) For large networks, layer-wise dropout (stochastic depth) is helpful especially like 0.5
 - For ticker embedding, use the same logic as CLIP if that’s doable. I.e. You randomly sample negative examples,
  and then do some contrastive learning on the tickers. 
-- for scaling the values, you can preprocess them beforehand, with a learnable normalization initialized for each
-category. if you do this at the end, it may create exploding gradients with like 1 billion or something vs the beginning
+- try https://www.evanmiller.org/attention-is-off-by-one.html by adding 1 to the denominator of attention for implicit regularizing
 - Go through all the data loading/reading and make it as efficient as possible. and loss calculation. try to parallelize it all.
-- Combine price scalars into a single token? Because lots of redundant info in them i feel (do later)
+- Would be cool to see if you can just learn a single D-len vector using sin(L(x)) * sqrt(|L(x)|) + b for time2vec! (SPDER)
 - Maybe can hook it up to a vqgan that learns tokens for each category, maybe more expensive tho idk
 - idk how to incorporate market data during runtime, maybe if you get a better dataset with other market participants, you can try
  to mask that out and have it trade, then give it that info and use that somehow (maybe RLHF idk). Just think about it, it should
   be fine If we’re not doing high frequency trading.
-- have the model trained to predict price in finetuning. Then., freeze the weights and train a aoftmax on the encoded latents
- to simply predict up ir down, athough it was originally trained to oredict the price. this will give a probability of ip or down,
-  and other is the ev. make it 5% increase as threshold. For example, 0.01% up is not useful.
 - for runtime, can add code to finetune on that day's market data to make it more specialized to perform based on recent activity
 - at the end, to see how much the network really uses each feature, try to get dLoss/dFeature for each feature (but normalized)
 obviously.
 - add sentiment analysis feature. Look at the headlines of forbes, fortune, business insider etc for each day (in the past too), and
 generate a sentiment vector. Financial roberta?
-- You could also pretrain on Math stats proofs to give it priors in that later
+- You could also pretrain on Math stats proofs to give it priors in that later (i.e. maybe being good at math makes u a better trader?)
 
 Features to include (from GPT):
 1. **Price Data**: This includes the high, low, opening, and closing prices.
