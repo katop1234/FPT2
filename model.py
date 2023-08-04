@@ -124,8 +124,10 @@ class FPT(nn.Module):
     
     def embed_original(self, df):
         # - sample the df for batch size rows
+        df_x = df.sample(self.batch_size)
+        gt = df_x["Close"].pct_change() + 1
+        
         # now for each row:
-        # - get the gt
         # - get the data for each category
         # - within each category, index out the correct days and normalize by returns
         # - embed them

@@ -49,6 +49,8 @@ put call ratio
 volatility index
 bullish percent index
 advance decline line
+the beta/alpha
+splits data
 high low index
 investor sentiment survey
 - Add options data also(?) maybe later, can add more modalities as we go on (add crypto, forex etc. eventually)
@@ -85,6 +87,12 @@ also for historical data feature, include the performance of the sector of that 
 Maybe for variables like unemployment and gdp growth which are highly correlated and dont vary day to day, just concat them along D-axis. i.e. 0-255 is the value for unemployment, 256-511 is GDP
 11. is there a way to get a sentiment analysis metric?
 - Using additional technical indicators like Moving Averages, RSI, MACD (probably need alphavantage) if they are not redundant
+- yfinance has this, so maybe you can add 1) ages + salaries + stock of the board members/staff 2) num employees 3) beta/alpha 4) trailing, forwardPE 
+5) bid/ask 6) market cap (take the log of this) 7) 52week low /high 8) etc. 
+- see stuff in yf.Ticker("AAPL").info, .financials, .balance_sheet, .cashflow, .options (you can also get .calls .puts by doing yf.Ticker("AAPL").option_chain(options[0]))
+.major_holders,  .institutional_holders. Ideally, you would find out which of these are easily quantifiable and learnable and then feed it into a giant model.
+- upcoming IPO calendar (IEX has this)
+- also just throw in a bunch of technical indicators (ik alpha vantage has like 50)
 
 possible sources:
 Alpha Vantage: Alpha Vantage offers free APIs for historical and real-time data on stocks, forex, and cryptocurrencies, as well as technical indicators, sector performances, and other financial metrics. It provides both free and premium tiers. It covers most of your listed requirements like price data, volume data, volatility (through technical indicators), return data, financial ratios, earnings data, and some market indicators. It also provides some basic macroeconomic data.
