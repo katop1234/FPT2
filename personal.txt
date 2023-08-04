@@ -26,8 +26,6 @@ up/stay/down may work also
  on different markets
 
 To-Do for the MVP:
-- normalize data to be returns.
-- for data preprocessing, make it percent change from previous day's value for each value
 - make the embedder versatile as possible with helper functions so that it works for any dataset with various input types
 - figure out how to update the attention mask to feed into the transformer
 - add main.py 
@@ -36,6 +34,7 @@ To-Do for the MVP:
 - add environment.yml to load this anywhere
 
 Future Steps:
+- we may need moving average instead of returns wrt previous day (people do this normally, sasmit mentioned also)
 - Since we normalize all the data wrt to the previous day's value, we forget the original "scale". I.e. $100 or $1000 all become
 percent changes. Figure out a way to include the original price. Maybe you can cross attend the first value of the price 
 onto the learned embedding before feeding it into the decoder (?)

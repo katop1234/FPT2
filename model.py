@@ -83,11 +83,14 @@ class FPT(nn.Module):
         self.df = df
         df_x = df.sample(self.batch_size)
         
-        # For each base category, get all the data we have on it
-        all_data = {category: [] for category in utils.get_base_categories()}
+        # Initialize dictionary with empty Pandas Series
+        all_data = {category: pd.Series(dtype='float64') for category in utils.get_base_categories()}
         for category in utils.get_base_categories():
-            all_data[category] = df_x[category]
-        
+            # Calculate returns wrt to previous value (100, 110, 99) -> (1, 1.1, 0.9)
+            temp = df_x[category].pct_change() + 1
+            temp.fillna(1, inplace=True) # By default the first value becomes nan bc no reference
+            all_data[category] = temp
+
         # With the data from above, index out the correct days and then get the embedding for that
         # If we don't have the values for that window (for example if we have up to 600 days, it won't work for Volume_Last_512_1024_days) then
         # add zeros there instead
