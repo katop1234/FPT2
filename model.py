@@ -21,8 +21,8 @@ class FPT(nn.Module):
         self.categories_lookup = dict()
         self.categories_lookup["floats"] = utils.get_floats_categories()
         self.categories_lookup["text"] = utils.get_text_categories()
-        self.categories_lookup["time2vec"] = utils.get_time2vec_categories()
-        self.all_categories = self.categories_lookup["floats"] + self.categories_lookup["text"] + self.categories_lookup["time2vec"]
+        self.categories_lookup["datetime"] = utils.get_time2vec_categories()
+        self.all_categories = self.categories_lookup["floats"] + self.categories_lookup["text"] + self.categories_lookup["datetime"]
         self.seq_len = len(self.all_categories) + 1 # +1 for the cls token
         
         self.df = None
@@ -41,7 +41,7 @@ class FPT(nn.Module):
         self.embeddings_lookup["Ticker"] = self.ticker_embedder
         
         # Encode the current datetime as a vector
-        for category in self.categories_lookup["time2vec"]:
+        for category in self.categories_lookup["datetime"]:
             if category == "Year":
                 time2vec_embedding = ContinuousEmbedding(1, self.embed_dim, bias=1900, scale=100) # not periodic
             elif category == "Month":

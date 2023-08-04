@@ -106,8 +106,19 @@ def base_categories():
     return categories
 
 def get_floats_categories():
+    '''
+    For getting the windows, here's how the logic works. If we feed in power_of_2 = 8 and num_mults = 12, 
+    then we get the following windows:
+    [1, 2, 4, 8, 16, 32, 64, 128, 256] + [512, 768, 1024, 1280...3072]
+    And the size of the sequence will be power_of_2 + num_mults, which is 20 in this case.
+    So for each base category, we have 20 windows. For example, for Open, we have:
+    Open_0_1_days, Open_1_2_days ... Open_128_256_days, Open_256_512_days ... Open_2816_3072_days
+    '''
     categories = base_categories()
-    days_back = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1536, 2048, 2584, 3072]
+    
+    power_of_2 = 8
+    num_mults = 12
+    days_back = [2**i for i in range(0, power_of_2+1)] + [2**power_of_2 * (i+1) for i in range(1, num_mults)]
     output = []
 
     for cat in categories:
