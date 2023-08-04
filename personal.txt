@@ -27,8 +27,10 @@ up/stay/down may work also
 
 To-Do for the MVP:
 - make the embedder versatile as possible with helper functions so that it works for any dataset with various input types
+- make it less complex by giving lots of helpers
 - add code to get the gt in embed original 
 - figure out how to update the attention mask to feed into the transformer
+
 - add main.py 
 - add backprop code in engine_train.py
 - add code to store/load from checkpoints
