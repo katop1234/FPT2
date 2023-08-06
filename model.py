@@ -74,6 +74,11 @@ class FPT(nn.Module):
         
         self.predictor = ContinuousReverseEmbedding(self.embed_dim, 1)
     
+    def append_cls(self, x):
+        cls_token = self.cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat([cls_token, x], dim=1)
+        return x
+    
     # TODO break into helpers
     def embed_original(self, df):
         # - sample the df for batch size rows
@@ -96,9 +101,9 @@ class FPT(nn.Module):
             # Iterate over categories
             for category in utils.get_floats_categories():
                 # Split category name to get base category and timeframe
-                base_category, start, end = category.split('_')[0], int(category.split('_')[2]), int(category.split('_')[3])
+                base_category, start, end = utils.parse_category(category)
 
-                # Adjust start date to start-1
+                # Adjust start date to start-1 to get returns of len = end-start
                 start -= 1
 
                 # Calculate start and end dates
@@ -149,11 +154,6 @@ class FPT(nn.Module):
         assert gt.shape == (self.batch_size,)
 
         return x, attention_mask, gt
-            
-    def append_cls(self, x):
-        cls_token = self.cls_token.expand(x.shape[0], -1, -1)
-        x = torch.cat([cls_token, x], dim=1)
-        return x
     
     def forward_decoder(self, x, attention_mask=None):
         x = self.decoder_input_proj(x)
