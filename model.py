@@ -85,41 +85,49 @@ class FPT(nn.Module):
         df_x = df.sample(self.batch_size)
         gt = df_x["gt"].values # Percent change in TypicalPrice wrt previous day
         
-        # Copy DataFrame and set index on the copy
-        df_indexed = df.copy().set_index(['Date', 'Ticker'])
-
         # These will hold our results
         x = []
         attention_mask = []
 
         # Iterate over rows in df_x
-        for index, row in df_x.iterrows():
+        for index, row in df_x.iterrows(): # B dimension
             # These will hold the data for the current row
             row_data = []
             row_mask = []
 
             # Iterate over categories
-            for category in utils.get_floats_categories():
+            for category in utils.get_floats_categories(): # N dimension
                 # Split category name to get base category and timeframe
-                base_category, start, end = utils.parse_category(category)
+                base_category, (start, end) = utils.parse_category(category)
 
-                # Adjust start date to start-1 to get returns of len = end-start
-                start -= 1
+                # Get the current date from the row
+                current_date = row['Date']
 
-                # Calculate start and end dates
-                start_date = index[0] - pd.DateOffset(days=start, unit='B')
-                end_date = index[0] - pd.DateOffset(days=end, unit='B')
+                # Calculate start_date as start + 1 business days before the current date
+                start_date = current_date - pd.offsets.BDay(start + 1)
 
-                # Check if data exists in date range
-                if (start_date, index[1]) in df_indexed.index and (end_date, index[1]) in df_indexed.index:
-                    # Get data in date range
-                    data = df_indexed.loc[start_date:end_date, index[1]][base_category].values
+                # Calculate end_date as end business days before the current date
+                end_date = current_date - pd.offsets.BDay(end)
+
+                # Generate all business dates between start_date and end_date
+                date_range = pd.date_range(start_date, end_date, freq='B')
+
+                # Check if all dates in the range exist in the DataFrame for the current ticker
+                ticker = row['Ticker']
+                if all(date in df['Date'].values and df['Ticker'].values == ticker for date in date_range):
+                    # Filter the DataFrame for the specific ticker and date range
+                    filtered_data = df[(df['Date'] >= start_date) & (df['Date'] <= end_date) & (df['Ticker'] == ticker)]
+
+                    # Get the values for the base_category column
+                    data = filtered_data[base_category].values
 
                     # Calculate percentage changes
                     returns = (data[1:] - data[:-1]) / data[:-1]
+                    returns = torch.tensor(returns).cuda()
 
                     # Get category embedding
-                    category_embedding = self.embeddings[category](returns) + self.cat_embeddings[category]
+                    category_embedding = self.embeddings_lookup[category](returns)
+                    category_embedding += + self.cat_embeddings[category]
 
                     # Add True to row_mask
                     row_mask.append(True)

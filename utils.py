@@ -133,7 +133,7 @@ def get_floats_categories():
 def parse_category(window_category_name):
     parts = window_category_name.split('_')
     feature = parts[0]
-    date_range = (int(parts[2]), int(parts[3]))
+    date_range = (int(parts[1]), int(parts[2]))
     return feature, date_range
 
 def get_base_category_name(window_category_name):
