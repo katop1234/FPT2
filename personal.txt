@@ -27,12 +27,15 @@ up/stay/down may work also
  on different markets
 
 To-Do for the MVP:
+- make sure the indexing means we font include the gt date in the training data. ie < start, and not <= start
 - we don't want to randomly sample from training data, do it iteratively thru time
 - add code to store/load from checkpoints
 - add environment.yml to load this anywhere
 
 Future Steps:
 - we may need moving average instead of returns wrt previous day (people do this normally, sasmit mentioned also)
+- after regression, we can quantize the prediction to have it pick a softmax over returns ranging from -40 to 40 percent in 0.25% bins.
+ So total 80*4 = 320 tokens. maybe itll be easier and allow for a knowledge distilled model?
 - Since we normalize all the data wrt to the previous day's value, we forget the original "scale". I.e. $100 or $1000 all become
 percent changes. Figure out a way to include the original price. Maybe you can cross attend the first value of the price 
 onto the learned embedding before feeding it into the decoder (?)
@@ -66,6 +69,9 @@ obviously.
 - add sentiment analysis feature. Look at the headlines of forbes, fortune, business insider etc for each day (in the past too), and
 generate a sentiment vector. Financial roberta?
 - You could also pretrain on Math stats proofs to give it priors in that later (i.e. maybe being good at math makes u a better trader?)
+- later if you want to inclide hft, you can actually make this a multiplayer game where you copy the same fpt transformer into N players,
+ and given the state space as a sequence, they have to predict the nezt trade to make. ie replace rl with transformers policy.
+  Then u use the best weights in the next game etc until convergence.
 
 Features to include (from GPT):
 1. **Price Data**: This includes the high, low, opening, and closing prices.
