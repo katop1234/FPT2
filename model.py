@@ -87,11 +87,25 @@ class FPT(nn.Module):
         start_date = current_date - pd.offsets.BDay(start_days_back + 1) # One day before the start
         end_date = current_date - pd.offsets.BDay(end_days_back)
         
+        print("Start date is", start_date, "and end date is", end_date)
+        
+        print("Date index type:", type(df.index))
+        
         # Filter the DataFrame for the specified ticker
-        subdf = df[df['Ticker'] == ticker]
+        subdf_date = df[df['Ticker'] == ticker]
 
         # Filter the DataFrame for the specified date range
-        subdf = subdf.loc[start_date:end_date]
+        subdf = subdf_date.loc[start_date:end_date]
+        print("Start date is", start_date, "and end date is", end_date,
+              "and the length of the subdf is", len(subdf),
+              "and subdf_date is", len(subdf_date),
+              "and the expected length is", start_days_back - end_days_back + 1)
+        
+        # Check the dates in the DataFrame for the specified ticker
+        print("Dates for the specified ticker:", subdf_date.index)
+
+        # Check the dates in the subdf
+        print("Dates in the subdf:", subdf.index)
 
         # Check if any date is missing within the range
         expected_length = start_days_back - end_days_back + 1
@@ -114,7 +128,6 @@ class FPT(nn.Module):
     
     # TODO break into helpers
     def embed_original(self, df):
-        assert pd.api.types.is_datetime64_any_dtype(df.index), "Index must be a date-like object"
 
         # - sample the df for batch size rows
         df_x = df.sample(self.batch_size)
@@ -126,7 +139,7 @@ class FPT(nn.Module):
         attention_mask = []
 
         # Iterate over rows in df_x
-        for current_date, row in df_x.iterrows(): # B dimension
+        for index, row in df_x.iterrows(): # B dimension
             # These will hold the data for the current row
             row_data = []
             row_mask = []
@@ -136,6 +149,7 @@ class FPT(nn.Module):
 
                 # Extract values for the given attribute and range of days, considering only weekdays
                 ticker = row["Ticker"]
+                current_date = row["Date"]
                 values = self.get_values_for_range(df, category, current_date, start_days_back, end_days_back, ticker)
 
                 if values is None: # Missing dates, set attention mask to false
@@ -144,10 +158,15 @@ class FPT(nn.Module):
                 else: # All dates present, set attention mask to true
                     category_embedding = self.embeddings_lookup[category_window](values)
                     category_embedding += + self.cat_embeddings[category_window]
+                    
+                    
+                    
                     print("Shape of the embedding", category_embedding.shape, "and using embedding function", self.embeddings_lookup[category_window])
                     print("Shape of the cat embedding", self.cat_embeddings[category_window].shape)
-                
+
                     row_mask.append(True)
+                
+                assert any(row_mask), f"Row mask is all false for row with {index}"
                     
                 row_data.append(category_embedding)
             
