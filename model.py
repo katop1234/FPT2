@@ -60,7 +60,7 @@ class FPT(nn.Module):
         ## Get categorical embeddings and mask tokens to add to input embedding
         self.cat_embeddings = CategoryEmbedding(self.all_categories, embed_dim) # (same thing as pos emb for vit)
         
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)) * 0.02
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)).cuda() * 0.02
         self.decoder_input_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.decoder_norm = nn.LayerNorm(self.embed_dim)
         self.decoder_blocks = nn.ModuleList(
@@ -78,88 +78,121 @@ class FPT(nn.Module):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat([cls_token, x], dim=1)
         return x
+
+    def get_values_for_range(self, df, category, current_date, start_days_back, end_days_back, ticker):
+        # Convert current_date to a pandas Timestamp
+        current_date = pd.Timestamp(current_date)
+
+        # Compute the start and end dates for the range
+        start_date = current_date - pd.offsets.BDay(start_days_back + 1) # One day before the start
+        end_date = current_date - pd.offsets.BDay(end_days_back)
+        
+        # Filter the DataFrame for the specified ticker
+        subdf = df[df['Ticker'] == ticker]
+
+        # Filter the DataFrame for the specified date range
+        subdf = subdf.loc[start_date:end_date]
+
+        # Check if any date is missing within the range
+        expected_length = start_days_back - end_days_back + 1
+        if len(subdf) != expected_length:
+            return None
+
+        # Extract the values for the specified category
+        values = subdf[category].values
+
+        # Compute the returns with respect to the previous day
+        returns = (values[1:] - values[:-1]) / values[:-1]
+
+        # Check the length of the returns array
+        if len(returns) != (start_days_back - end_days_back):
+            return None
+
+        # Cast to a tensor and return
+        return torch.tensor(returns)
+
     
     # TODO break into helpers
     def embed_original(self, df):
+        assert pd.api.types.is_datetime64_any_dtype(df.index), "Index must be a date-like object"
+
         # - sample the df for batch size rows
         df_x = df.sample(self.batch_size)
         gt = df_x["gt"].values # Percent change in TypicalPrice wrt previous day
+        gt = torch.tensor(gt).cuda()
         
         # These will hold our results
         x = []
         attention_mask = []
 
         # Iterate over rows in df_x
-        for index, row in df_x.iterrows(): # B dimension
+        for current_date, row in df_x.iterrows(): # B dimension
             # These will hold the data for the current row
             row_data = []
             row_mask = []
+            for category_window in utils.get_floats_categories(): # N dimension
+                # Parse the category to get attribute and range of days
+                category, (end_days_back, start_days_back) = utils.parse_category(category_window)
 
-            # Iterate over categories
-            for category in utils.get_floats_categories(): # N dimension
-                # Split category name to get base category and timeframe
-                base_category, (start, end) = utils.parse_category(category)
+                # Extract values for the given attribute and range of days, considering only weekdays
+                ticker = row["Ticker"]
+                values = self.get_values_for_range(df, category, current_date, start_days_back, end_days_back, ticker)
 
-                # Get the current date from the row
-                current_date = row['Date']
-
-                # Calculate start_date as start + 1 business days before the current date
-                start_date = current_date - pd.offsets.BDay(start + 1)
-
-                # Calculate end_date as end business days before the current date
-                end_date = current_date - pd.offsets.BDay(end)
-
-                # Generate all business dates between start_date and end_date
-                date_range = pd.date_range(start_date, end_date, freq='B')
-
-                # Check if all dates in the range exist in the DataFrame for the current ticker
-                ticker = row['Ticker']
-                if all(date in df['Date'].values and df['Ticker'].values == ticker for date in date_range):
-                    # Filter the DataFrame for the specific ticker and date range
-                    filtered_data = df[(df['Date'] >= start_date) & (df['Date'] <= end_date) & (df['Ticker'] == ticker)]
-
-                    # Get the values for the base_category column
-                    data = filtered_data[base_category].values
-
-                    # Calculate percentage changes
-                    returns = (data[1:] - data[:-1]) / data[:-1]
-                    returns = torch.tensor(returns).cuda()
-
-                    # Get category embedding
-                    category_embedding = self.embeddings_lookup[category](returns)
-                    category_embedding += + self.cat_embeddings[category]
-
-                    # Add True to row_mask
-                    row_mask.append(True)
-                else:
-                    # Create a zero tensor for category embedding
+                if values is None: # Missing dates, set attention mask to false
                     category_embedding = torch.zeros(self.embed_dim)
-
-                    # Add False to row_mask
                     row_mask.append(False)
-
-                # Add to row data
+                else: # All dates present, set attention mask to true
+                    category_embedding = self.embeddings_lookup[category_window](values)
+                    category_embedding += + self.cat_embeddings[category_window]
+                    print("Shape of the embedding", category_embedding.shape, "and using embedding function", self.embeddings_lookup[category_window])
+                    print("Shape of the cat embedding", self.cat_embeddings[category_window].shape)
+                
+                    row_mask.append(True)
+                    
                 row_data.append(category_embedding)
+            
+            for category_window in utils.get_text_categories():
+                ticker = row["Ticker"]
+                category_embedding = self.embeddings_lookup["Ticker"](ticker)
+                category_embedding += + self.cat_embeddings[category_window]
+                
+                row_data.append(category_embedding)
+                row_mask.append(True)
+            
+            for category_window in utils.get_time2vec_categories():
+                time = row[category_window]
+                time = torch.tensor([time]).float().cuda()
+                category_embedding = self.embeddings_lookup[category_window](time)
+                print("Time is", time)
+                print("Shape of the embedding", category_embedding.shape, "and using embedding function", self.embeddings_lookup[category_window])
+                print("Shape of the cat embedding", self.cat_embeddings[category_window].shape)
+                category_embedding += self.cat_embeddings[category_window]
+                
+                row_data.append(category_embedding)
+                row_mask.append(True)
+            
+            # Convert row_data and row_mask to tensors
+            row_data_tensor = torch.stack(row_data).cuda() # Stacking the tensor list
+            row_mask_tensor = torch.tensor(row_mask, dtype=torch.bool).unsqueeze(-1).cuda() # Adding an extra dimension for [N, 1] shape
 
-            # Convert row_data to a 2D tensor and add to category data
-            x.append(torch.stack(row_data))
-
-            # Convert row_mask to a 1D tensor and add to attention_mask
-            attention_mask.append(torch.tensor(row_mask))
-
-        # Convert category_data to a 3D tensor
-        x = torch.stack(x)
+            # Append to the result holders
+            x.append(row_data_tensor)
+            attention_mask.append(row_mask_tensor)   
+            
+        # Convert lists of tensors to final tensors
+        x = torch.stack(x).cuda()
         x = self.append_cls(x)
+        attention_mask = torch.stack(attention_mask).squeeze(-1) # Removing the extra dimension after stacking
 
-        # Add True to each row in attention_mask to account for the [CLS] token
-        attention_mask = [torch.cat([torch.tensor(True), row]) for row in attention_mask]
+        # Create a tensor of True values with the same batch size
+        true_tensor = torch.ones((self.batch_size, 1), dtype=torch.bool).cuda()
 
-        # Convert attention_mask to a 2D tensor
-        attention_mask = torch.stack(attention_mask)
+        # Concatenate the true_tensor with the attention_mask along dimension 1
+        attention_mask = torch.cat([true_tensor, attention_mask], dim=1)
         
-        assert x.shape == (self.batch_size, self.seq_len, self.embed_dim)
-        assert attention_mask.shape == (self.batch_size, self.seq_len)
-        assert gt.shape == (self.batch_size,)
+        assert x.shape == (self.batch_size, self.seq_len, self.embed_dim), f"Expected shape {(self.batch_size, self.seq_len, self.embed_dim)}, got {x.shape}"
+        assert attention_mask.shape == (self.batch_size, self.seq_len), f"Expected shape {(self.batch_size, self.seq_len)}, got {attention_mask.shape}"
+        assert gt.shape == (self.batch_size,), f"Expected shape {(self.batch_size,)}, got {gt.shape}"
 
         return x, attention_mask, gt
     

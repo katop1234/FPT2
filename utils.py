@@ -94,7 +94,14 @@ def get_num_days(window_category_name):
     return num_days
 
 def get_time2vec_categories():
-    categories = ['Year', 'Month', 'Day', 'Weekday', 'Hour', 'Minute']
+    categories = [
+                  'Year', 
+                  'Month', 
+                  'Day', 
+                  'Weekday', 
+                 # 'Hour', 
+                 # 'Minute'
+                  ]
     return categories
 
 def get_text_categories():
