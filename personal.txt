@@ -27,12 +27,17 @@ up/stay/down may work also
  on different markets
 
 To-Do for the MVP:
+- just preprocess the entire dataset and convert all the numbers into something that a torch dataloader can access
 - make sure the indexing means we font include the gt date in the training data. ie < start, and not <= start
 - we don't want to randomly sample from training data, do it iteratively thru time
+- figure out how to feed in the text category at the end
+- parallelize over batches/tokens
 - add code to store/load from checkpoints
 - add environment.yml to load this anywhere
 
 Future Steps:
+- Try to see if can collate variable length tensors into the batch, and also keep track of the input name
+ (might be more complex leave for later) rather than just padding 0s
 - we may need moving average instead of returns wrt previous day (people do this normally, sasmit mentioned also)
 - after regression, we can quantize the prediction to have it pick a softmax over returns ranging from -40 to 40 percent in 0.25% bins.
  So total 80*4 = 320 tokens. maybe itll be easier and allow for a knowledge distilled model?

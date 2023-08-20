@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import utils
 from classes import (
-    TransformerBlock, ContinuousReverseEmbedding, Time2VecEmbedding, 
+    TransformerBlock, ContinuousUnembedding, Time2VecEmbedding, 
     TickerEmbedding, ContinuousEmbedding, CategoryEmbedding)
 import numpy as np
 import pandas as pd
@@ -72,7 +72,7 @@ class FPT(nn.Module):
             ]
         )
         
-        self.predictor = ContinuousReverseEmbedding(self.embed_dim, 1)
+        self.predictor = ContinuousUnembedding(self.embed_dim, 1)
     
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
@@ -80,20 +80,19 @@ class FPT(nn.Module):
         return x
 
     def get_values_for_range(self, df, category, current_date, start_days_back, end_days_back, ticker):
+        
         # Convert current_date to a pandas Timestamp
         current_date = pd.Timestamp(current_date)
 
         # Compute the start and end dates for the range
-        start_date = current_date - pd.offsets.BDay(start_days_back + 2) # One day before the start
-        end_date = current_date - pd.offsets.BDay(end_days_back)
+        start_date = current_date - pd.offsets.BDay(start_days_back+1) # One day before the start
+        end_date = current_date - pd.offsets.BDay(end_days_back+1)
         
         # Filter the DataFrame for the specified ticker
         subdf = df[df['Ticker'] == ticker]
 
         # Filter the DataFrame for the specified date range
         subdf = subdf[(subdf["Date"] >= start_date) & (subdf["Date"] <= end_date)]
-        
-        print('Shape of subdf after indexing date is', subdf.shape, subdf)
 
         # Check if any date is missing within the range
         expected_length = start_days_back - end_days_back + 1
@@ -103,15 +102,17 @@ class FPT(nn.Module):
         # Extract the values for the specified category
         values = subdf[category].values
 
-        # Compute the returns with respect to the previous day
-        returns = (values[1:] - values[:-1]) / values[:-1]
+        # Compute the returns (if any division by zero, set to zero)
+        differences = values[1:] - values[:-1]
+        returns = np.divide(differences, values[:-1], out=np.zeros_like(differences), where=values[:-1] != 0)
 
         # Check the length of the returns array
         if len(returns) != (start_days_back - end_days_back):
             return None
 
         # Cast to a tensor and return
-        return torch.tensor(returns)
+        returns = torch.tensor(returns).float().cuda()
+        return returns
 
     
     # TODO break into helpers
@@ -141,27 +142,23 @@ class FPT(nn.Module):
                 values = self.get_values_for_range(df, category, current_date, start_days_back, end_days_back, ticker)
 
                 if values is None: # Missing dates, set attention mask to false
-                    category_embedding = torch.zeros(self.embed_dim)
+                    category_embedding = torch.zeros(self.embed_dim).cuda()
                     row_mask.append(False)
                 else: # All dates present, set attention mask to true
                     category_embedding = self.embeddings_lookup[category_window](values)
-                    category_embedding += + self.cat_embeddings[category_window]
-                    
-                    
-                    
-                    print("Shape of the embedding", category_embedding.shape, "and using embedding function", self.embeddings_lookup[category_window])
-                    print("Shape of the cat embedding", self.cat_embeddings[category_window].shape)
+                    category_embedding += self.cat_embeddings[category_window]
 
                     row_mask.append(True)
                 
-                assert any(row_mask), f"Row mask is all false for row with {index}"
+                if not any(row_mask):
+                    print("WARNING", f"Row mask is all false for row with {current_date} and ticker {ticker}")
                     
                 row_data.append(category_embedding)
             
             for category_window in utils.get_text_categories():
                 ticker = row["Ticker"]
                 category_embedding = self.embeddings_lookup["Ticker"](ticker)
-                category_embedding += + self.cat_embeddings[category_window]
+                category_embedding += self.cat_embeddings[category_window]
                 
                 row_data.append(category_embedding)
                 row_mask.append(True)
@@ -170,9 +167,6 @@ class FPT(nn.Module):
                 time = row[category_window]
                 time = torch.tensor([time]).float().cuda()
                 category_embedding = self.embeddings_lookup[category_window](time)
-                print("Time is", time)
-                print("Shape of the embedding", category_embedding.shape, "and using embedding function", self.embeddings_lookup[category_window])
-                print("Shape of the cat embedding", self.cat_embeddings[category_window].shape)
                 category_embedding += self.cat_embeddings[category_window]
                 
                 row_data.append(category_embedding)
@@ -184,7 +178,9 @@ class FPT(nn.Module):
 
             # Append to the result holders
             x.append(row_data_tensor)
-            attention_mask.append(row_mask_tensor)   
+            attention_mask.append(row_mask_tensor) 
+            
+            print("finished index ", index)  
             
         # Convert lists of tensors to final tensors
         x = torch.stack(x).cuda()
@@ -218,7 +214,10 @@ class FPT(nn.Module):
     
     def forward(self, df):
         x, attention_mask, gt = self.embed_original(df)
+        print("Embeded input")
         cls_token = self.forward_decoder(x, attention_mask)
+        print("ran decoder")
         loss = self.forward_loss(cls_token, gt)
+        print("Called forward. Got loss of ", loss)
         return loss
         
