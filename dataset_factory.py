@@ -61,7 +61,7 @@ for i, row in df.iterrows():
 
     # Handle the float categories
     for category in floats_categories:
-        feature_name, start_days, end_days = category.split('_')
+        feature_name, start_days, end_days, _ = category.split('_')
         start_days, end_days = int(start_days), int(end_days)
         
         start_date = date - BDay(start_days)
@@ -90,6 +90,8 @@ for i, row in df.iterrows():
         row_mask.append(mask_value)
     
     target_values.append(row['gt'])
+    
+    print("Row data shape: ", np.array(row_data).shape, "Attention mask shape: ", np.array(row_mask).shape, "for date and ticker: ", date, ticker)
 
     preprocessed_data.append(row_data)
     attention_masks.append(row_mask)
@@ -97,6 +99,10 @@ for i, row in df.iterrows():
 preprocessed_data = torch.tensor(preprocessed_data, dtype=torch.float).cuda()  # Shape: [num_rows, N, D]
 attention_masks = torch.tensor(attention_masks, dtype=torch.bool).cuda()    # Shape: [num_rows, N]
 targets = torch.tensor(target_values, dtype=torch.float).cuda()              # Shape: [num_rows, 1]
+
+utils.write("preprocessed_data.ser", preprocessed_data)
+utils.write("attention_masks.ser", attention_masks)
+utils.write("targets.ser", targets)
 
 class CustomDataset(Dataset):
     def __init__(self, preprocessed_data, attention_masks, targets):
