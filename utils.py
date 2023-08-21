@@ -108,7 +108,7 @@ def get_text_categories():
     out = ["Ticker"]
     return out
 
-def base_categories():
+def get_base_categories():
     categories = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
     return categories
 
@@ -121,7 +121,7 @@ def get_floats_categories():
     So for each base category, we have 20 windows. For example, for Open, we have:
     Open_0_1_days, Open_1_2_days ... Open_128_256_days, Open_256_512_days ... Open_2816_3072_days
     '''
-    categories = base_categories()
+    categories = get_base_categories()
     
     power_of_2 = 8
     num_mults = 12

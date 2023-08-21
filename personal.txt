@@ -1,5 +1,6 @@
 
 source /shared/katop1234/miniconda3/bin/activate /shared/katop1234/miniconda3/envs/FPT
+export CUDA_VISIBLE_DEVICES="3,4,5,6,7"
 python main.py
 
 reading:

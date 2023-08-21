@@ -53,12 +53,12 @@ time2vec_categories = utils.get_time2vec_categories()
 preprocessed_data = []
 attention_masks = []
 target_values = []
-for i, row in df.iterrows():
+# Set the multi-level index and sort
+df = df.set_index(['Ticker', 'Date']).sort_index()
+
+for (ticker, date), row in df.iterrows():
     row_data = []
     row_mask = []
-    date = row['Date']
-    ticker = row['Ticker']
-
     # Handle the float categories
     for category in floats_categories:
         feature_name, start_days, end_days, _ = category.split('_')
@@ -67,32 +67,34 @@ for i, row in df.iterrows():
         start_date = date - BDay(start_days)
         end_date = date - BDay(end_days)
         
-        window_data = df[(df['Date'] >= start_date) & (df['Date'] < end_date) & (df['Ticker'] == ticker)]
-        window_values = window_data[feature_name].values
-        
-        if len(window_values) == 0:
-            token_data = [-1] * data_dim  # Padding value
+        # Use a loop to filter the DataFrame for the desired date range
+        window_values = []
+        for d in pd.date_range(start=start_date, end=end_date, freq='B'):
+            try:
+                value = df.loc[(ticker, d), feature_name]
+                window_values.append(value)
+            except KeyError:
+                continue
+
+        if not window_values:
+            token_data = [-100] * data_dim  # Padding value
             mask_value = 0
         else:
-            token_data = list(window_values) + [0] * (data_dim - len(window_values)) # Padding with zeros
+            token_data = window_values + [0] * (data_dim - len(window_values)) # Padding with zeros
             mask_value = 1
             
         row_data.append(token_data)
         row_mask.append(mask_value)
     
-    # Handle the time-related categories
-    for category in time2vec_categories:
-        value = [float(row[category])]  # Convert to 1-length float
-        token_data = value + [0] * (data_dim - 1) # Padding with zeros
-        mask_value = 1 # Always include time-related categories
-        
-        row_data.append(token_data)
-        row_mask.append(mask_value)
+    # Handle the time2vec categories
+    ...
     
-    target_values.append(row['gt'])
+    # Append the ticker index also
+    row_data.append([ticker] * data_dim)
     
     print("Row data shape: ", np.array(row_data).shape, "Attention mask shape: ", np.array(row_mask).shape, "for date and ticker: ", date, ticker)
-
+    
+    target_values.append(row['gt'])
     preprocessed_data.append(row_data)
     attention_masks.append(row_mask)
 
