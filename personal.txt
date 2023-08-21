@@ -2,6 +2,15 @@
 source /shared/katop1234/miniconda3/bin/activate /shared/katop1234/miniconda3/envs/FPT
 python main.py
 
+reading:
+https://towardsdatascience.com/stock-predictions-with-state-of-the-art-transformer-and-time-embeddings-3a4485237de6
+https://github.com/JanSchm/CapMarket/blob/master/bot_experiments/IBM_Transformer%2BTimeEmbedding.ipynb
+https://neuravest.net/how-transformers-with-attention-networks-boost-time-series-forecasting/
+https://www.sciencedirect.com/science/article/pii/S0957417422013100
+https://arxiv.org/pdf/2208.08300.pdf
+https://arxiv.org/pdf/2208.08300.pdf
+https://arxiv.org/pdf/1907.05321.pdf time2vec
+
 Zeta Finance
 
 Project Overview
@@ -30,10 +39,9 @@ To-Do for the MVP:
 - just preprocess the entire dataset and convert all the numbers into something that a torch dataloader can access
 - make sure the indexing means we font include the gt date in the training data. ie < start, and not <= start
 - we don't want to randomly sample from training data, do it iteratively thru time
-- figure out how to feed in the text category at the end
-- parallelize over batches/tokens
 - add code to store/load from checkpoints
 - add environment.yml to load this anywhere
+- figure out how to feed in the text category at the end
 
 Future Steps:
 - Try to see if can collate variable length tensors into the batch, and also keep track of the input name
@@ -99,6 +107,7 @@ Maybe for variables like unemployment and gdp growth which are highly correlated
 .major_holders,  .institutional_holders. Ideally, you would find out which of these are easily quantifiable and learnable and then feed it into a giant model.
 - upcoming IPO calendar (IEX has this)
 - also just throw in a bunch of technical indicators (ik alpha vantage has like 50)
+- try this on other markets if this 
 
 possible sources:
 Alpha Vantage: Alpha Vantage offers free APIs for historical and real-time data on stocks, forex, and cryptocurrencies, as well as technical indicators, sector performances, and other financial metrics. It provides both free and premium tiers. It covers most of your listed requirements like price data, volume data, volatility (through technical indicators), return data, financial ratios, earnings data, and some market indicators. It also provides some basic macroeconomic data.

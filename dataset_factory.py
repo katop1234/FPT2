@@ -35,56 +35,83 @@ Remember we don't want to randomly sample, but instead pass thru it over time.
 
 # Assuming utils.read is a function that reads the serialized data
 df = utils.read("SNPdata.ser")
+df = df.sort_values(by='Date')
 
-# Your code for base_categories() and get_floats_categories() here...
+import numpy as np
+from pandas.tseries.offsets import BDay
 
-# Assuming df is your DataFrame
-categories = utils.get_floats_categories()
-default_data_dim = 1280
+floats_categories = utils.get_floats_categories()
 
-# Iterate through categories to create and populate new columns
-for category in categories:
-    base_cat, start_window, end_window = category.split('_')[0], int(category.split('_')[1]), int(category.split('_')[-2])
-    col_name = f"{base_cat}_{start_window}_{end_window}_days"
-    df[col_name] = 0  # Initialize column with zeros
+# Define the data dimension (length of each token)
+data_dim = 1280
 
-    # Populate column values based on window and base category
-    for index, row in df.iterrows():
-        if index >= end_window:
-            values = df[base_cat][index - end_window:index - start_window].values
-            if len(values) < default_data_dim:
-                values = [0] * (default_data_dim - len(values)) + list(values)
-            df.at[index, col_name] = values  # Assuming that the values are stored as a list or similar structure
+# Get the float categories and time-related categories
+floats_categories = utils.get_floats_categories()
+time2vec_categories = utils.get_time2vec_categories()
 
+# Preprocessing step to combine the windows and create attention masks
+preprocessed_data = []
+attention_masks = []
+for i, row in df.iterrows():
+    row_data = []
+    row_mask = []
+    date = row['Date']
+    ticker = row['Ticker']
 
-# Create a custom dataset class
-class FinancialDataset(Dataset):
-    def __init__(self, dataframe, input_features, target_feature):
-        self.dataframe = dataframe
-        self.input_features = input_features
-        self.target_feature = target_feature
+    # Handle the float categories
+    for category in floats_categories:
+        feature_name, start_days, end_days = category.split('_')
+        start_days, end_days = int(start_days), int(end_days)
+        
+        start_date = date - BDay(start_days)
+        end_date = date - BDay(end_days)
+        
+        window_data = df[(df['Date'] >= start_date) & (df['Date'] < end_date) & (df['Ticker'] == ticker)]
+        window_values = window_data[feature_name].values
+        
+        if len(window_values) == 0:
+            token_data = [-1] * data_dim  # Padding value
+            mask_value = 0
+        else:
+            token_data = list(window_values) + [0] * (data_dim - len(window_values)) # Padding with zeros
+            mask_value = 1
+            
+        row_data.append(token_data)
+        row_mask.append(mask_value)
+    
+    # Handle the time-related categories
+    for category in time2vec_categories:
+        value = [float(row[category])]  # Convert to 1-length float
+        token_data = value + [0] * (data_dim - 1) # Padding with zeros
+        mask_value = 1 # Always include time-related categories
+        
+        row_data.append(token_data)
+        row_mask.append(mask_value)
+
+    preprocessed_data.append(row_data)
+    attention_masks.append(row_mask)
+
+preprocessed_data = torch.tensor(preprocessed_data, dtype=torch.float)  # Shape: [num_rows, N, D]
+attention_masks = torch.tensor(attention_masks, dtype=torch.bool)      # Shape: [num_rows, N]
+
+class CustomDataset(Dataset):
+    def __init__(self, preprocessed_data, attention_masks):
+        self.data = preprocessed_data
+        self.masks = attention_masks
 
     def __len__(self):
-        return len(self.dataframe)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        inputs = torch.tensor([self.dataframe[feature][idx] for feature in self.input_features], dtype=torch.float32)
-        target = torch.tensor(self.dataframe[self.target_feature][idx], dtype=torch.float32)
-        return inputs, target
+        return self.data[idx], self.masks[idx]
 
-# List of input feature columns, you can modify as needed
-input_features = categories  # Categories we created earlier
-target_feature = 'gt'  # Modify this as needed
-
-# Create the custom dataset
-dataset = FinancialDataset(df, input_features, target_feature)
-
-# Create the DataLoader
 batch_size = 64
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
-# Example of loading data to GPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-for batch_inputs, batch_targets in dataloader:
-    batch_inputs, batch_targets = batch_inputs.to(device), batch_targets.to(device)
-    # Your model training or evaluation code here
+# Create DataLoader
+dataset = CustomDataset(preprocessed_data, attention_masks)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+
+for batch_idx, (data_batch, mask_batch) in enumerate(dataloader):
+    data_batch, mask_batch = data_batch.cuda(), mask_batch.cuda()
+    # data_batch is now of shape [B, N, D]
+    # mask_batch is now of shape [B, N]

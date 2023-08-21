@@ -2,6 +2,7 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.multiprocessing as mp
+import dataset_factory
 import utils
 import os
 from model import FPT
@@ -46,13 +47,12 @@ def main_worker(gpu, ngpus_per_node):
     eff_learning_rate = lr * eff_batch_size / 1024
 
     # Assuming df is a DataFrame where each row is a training sample
-    df = utils.read('SNPdata.ser')
-    print("read df")
+    dataloader = dataset_factory.dataloader
 
     for epoch in range(num_epochs):
         # shuffle data at the beginning of each epoch
         optimizer = torch.optim.Adam(model.parameters(), lr=eff_learning_rate)
-        train_one_epoch(model, df, accum_iter, optimizer, batch_size_per_gpu)
+        train_one_epoch(model, dataloader, accum_iter, optimizer, batch_size_per_gpu)
 
 def main():
     ngpus_per_node = torch.cuda.device_count()
