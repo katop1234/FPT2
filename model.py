@@ -212,12 +212,10 @@ class FPT(nn.Module):
         loss = utils.mean_squared_error(gt, pred)
         return loss
     
-    def forward(self, df):
-        x, attention_mask, gt = self.embed_original(df)
-        print("Embeded input")
+    def forward(self, x, attention_mask, targets):
         cls_token = self.forward_decoder(x, attention_mask)
         print("ran decoder")
-        loss = self.forward_loss(cls_token, gt)
+        loss = self.forward_loss(cls_token, targets)
         print("Called forward. Got loss of ", loss)
         return loss
         

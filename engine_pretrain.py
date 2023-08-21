@@ -6,12 +6,10 @@ def train_one_epoch(model, dataloader, accum_iter, optimizer, device):
     optimizer.zero_grad()
     total_loss = 0.0 # To accumulate loss
 
-    for data_iter_step, (batch_data, batch_masks) in enumerate(dataloader):
-        batch_data = batch_data.to(device, non_blocking=True)
-        batch_masks = batch_masks.to(device, non_blocking=True)
+    for data_iter_step, (batch_data, batch_masks, batch_targets) in enumerate(dataloader):
 
         # Compute loss
-        loss = model(batch_data, attention_mask=batch_masks)
+        loss = model(x=batch_data, attention_mask=batch_masks, targets=batch_targets)
         loss_value = loss.item()
 
         # If the loss is not finite, skip the backward pass for this iteration

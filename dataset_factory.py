@@ -52,6 +52,7 @@ time2vec_categories = utils.get_time2vec_categories()
 # Preprocessing step to combine the windows and create attention masks
 preprocessed_data = []
 attention_masks = []
+target_values = []
 for i, row in df.iterrows():
     row_data = []
     row_mask = []
@@ -87,31 +88,31 @@ for i, row in df.iterrows():
         
         row_data.append(token_data)
         row_mask.append(mask_value)
+    
+    target_values.append(row['gt'])
 
     preprocessed_data.append(row_data)
     attention_masks.append(row_mask)
 
-preprocessed_data = torch.tensor(preprocessed_data, dtype=torch.float)  # Shape: [num_rows, N, D]
-attention_masks = torch.tensor(attention_masks, dtype=torch.bool)      # Shape: [num_rows, N]
+preprocessed_data = torch.tensor(preprocessed_data, dtype=torch.float).cuda()  # Shape: [num_rows, N, D]
+attention_masks = torch.tensor(attention_masks, dtype=torch.bool).cuda()    # Shape: [num_rows, N]
+targets = torch.tensor(target_values, dtype=torch.float).cuda()              # Shape: [num_rows, 1]
 
 class CustomDataset(Dataset):
-    def __init__(self, preprocessed_data, attention_masks):
+    def __init__(self, preprocessed_data, attention_masks, targets):
         self.data = preprocessed_data
         self.masks = attention_masks
+        self.targets = targets
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        return self.data[idx], self.masks[idx]
+        return self.data[idx], self.masks[idx], self.targets[idx]
 
 batch_size = 64
 
 # Create DataLoader
-dataset = CustomDataset(preprocessed_data, attention_masks)
+dataset = CustomDataset(preprocessed_data, attention_masks, targets)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
-for batch_idx, (data_batch, mask_batch) in enumerate(dataloader):
-    data_batch, mask_batch = data_batch.cuda(), mask_batch.cuda()
-    # data_batch is now of shape [B, N, D]
-    # mask_batch is now of shape [B, N]
