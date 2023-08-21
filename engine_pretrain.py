@@ -1,39 +1,32 @@
 import torch
 from torch import inf
+import math, sys
 
-def train_one_epoch(model, dataloader, accum_iter, optimizer):
-    epoch_loss = 0.
-
-    # zero the gradients
+def train_one_epoch(model, dataloader, accum_iter, optimizer, device):
     optimizer.zero_grad()
-    
-    print("Starting one epoch")
-    
-    # Iterate through the batches from the DataLoader
-    for batch_idx, (batch_data, batch_masks) in enumerate(dataloader):
-        
-        # If using GPU, move the batch to the GPU
-        if torch.cuda.is_available():
-            batch_data = batch_data.cuda()
-            batch_masks = batch_masks.cuda()
+    total_loss = 0.0 # To accumulate loss
 
-        for i in range(accum_iter):
-            # Pass the batch through the model
-            x, loss, latents = model(batch_data, attention_mask=batch_masks)
-            epoch_loss += loss.item() / accum_iter
+    for data_iter_step, (batch_data, batch_masks) in enumerate(dataloader):
+        batch_data = batch_data.to(device, non_blocking=True)
+        batch_masks = batch_masks.to(device, non_blocking=True)
 
-        # Divide the loss by accum_iter and compute gradients
-        (loss / accum_iter).backward()
-        
-        # Update only every accum_iter
-        if (batch_idx + 1) % accum_iter == 0:
-            print("Called backprop for batch. Accumulated loss: ", epoch_loss)
+        # Compute loss
+        loss = model(batch_data, attention_mask=batch_masks)
+        loss_value = loss.item()
+
+        # If the loss is not finite, skip the backward pass for this iteration
+        if not math.isfinite(loss_value):
+            print(f"Loss is {loss_value}, skipping this iteration")
+            continue
+
+        # Accumulate the gradients
+        loss /= accum_iter
+        loss.backward()
+        total_loss += loss_value
+
+        # If we've accumulated enough iterations, update the parameters
+        if (data_iter_step + 1) % accum_iter == 0:
             optimizer.step()
             optimizer.zero_grad()
 
-    print("Finished epoch with total loss of ", epoch_loss)
-
-    return model, epoch_loss
-
-
-
+    print(f"Finished one epoch with total loss: {total_loss}")
