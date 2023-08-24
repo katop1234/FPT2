@@ -37,6 +37,8 @@ up/stay/down may work also
  on different markets
 
 To-Do for the MVP:
+- initilaize unknown weight to 0.02 not randomly generated so model doesn’t pick up on random variations for no reason
+- still need to embed raw values (j linear projection, then time2vec)
 - just preprocess the entire dataset and convert all the numbers into something that a torch dataloader can access
 - make sure the indexing means we font include the gt date in the training data. ie < start, and not <= start
 - we don't want to randomly sample from training data, do it iteratively thru time
