@@ -1,4 +1,10 @@
 
+'''
+for current_date in current_dates:
+  for window in windows (0_1 days, 2_4 days): # O(20)
+    index out appropriate dates by looking up the index based on date for each category in parallel # O(1)
+'''
+
 source /shared/katop1234/miniconda3/bin/activate /shared/katop1234/miniconda3/envs/FPT
 export CUDA_VISIBLE_DEVICES="3,4,5,6,7"
 python main.py
