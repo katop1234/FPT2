@@ -10,6 +10,7 @@ time2vec_categories = utils.get_time2vec_categories()
 token_length = 2 ** utils.POWER_OF_2
 num_categories = len(base_categories) + len(time2vec_categories)
 num_tokens = len(date_ranges) * num_categories
+
 class Ticker:
     def __init__(self, metadata):
         self.ticker = metadata["ticker"]
@@ -51,14 +52,18 @@ class FinancialDataset(Dataset):
         self.df.set_index(["Ticker", "Date"])
         # each ticker needs start date, num_rows, numpy array of input features, gt vector
         self.ticker_metadata = {}
+        self.ticker_generator_lookup = {}
 
         for ticker in self.ticker_names:
-            self.add_ticker_metadata(ticker)
+            metadata = self.add_ticker_metadata(ticker)
+            self.ticker_generator_lookup[ticker] = Ticker(metadata)
 
-
-
-        # by the end of the init method return a tensor of shape
-        # (num_features=num_categories*num_windows=10*20, max_dim=256)
+        self.stack = self.ticker_names
+    
+    def pop_stack_and_move_to_back(self):
+        popped = self.stack[0]
+        self.stack = self.stack[1:] + self.stack[0]
+        return popped
 
     def add_ticker_metadata(self, ticker):
         ticker_df = self.df.loc[ticker]
@@ -80,15 +85,22 @@ class FinancialDataset(Dataset):
                     }
 
         self.ticker_metadata[ticker] = metadata
+        return metadata
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
         # call gen function for next ticker in stack
+        
+        sample = None
+        while sample is None:
+            chosen_ticker = self.pop_stack_and_move_to_back()
+            Ticker_generator = self.ticker_generator_lookup[chosen_ticker]
+            sample, mask = Ticker_generator.gen_function()
+            if sample is None:
+                # done with that ticker
+                self.stack = self.stack[:-1]
+            else:
+                return torch.from_numpy(sample), mask # TODO convert to torch during init and figure out how to feed in mask
 
-        return sample
-
-# Example usage:
-dataset = FinancialDataset("path_to_your_data.csv")
-sample = dataset[0]  # Fetch the first sample from the dataset

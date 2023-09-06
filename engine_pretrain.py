@@ -1,7 +1,7 @@
 import torch
 from torch import inf
 
-def train_one_epoch(model, df, accum_iter, optimizer, batch_size_per_gpu):
+def train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     epoch_loss = 0.
 
     # zero the gradients
@@ -9,7 +9,8 @@ def train_one_epoch(model, df, accum_iter, optimizer, batch_size_per_gpu):
     
     print("Starting one epoch")
     for i in range(accum_iter):
-        x, loss, latents = model(df)
+        x, mask, y = dataset[i]
+        x, loss, latents = model(x, mask, y)
         epoch_loss += loss
 
     # calculate the backward pass
