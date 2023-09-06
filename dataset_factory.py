@@ -103,4 +103,3 @@ class FinancialDataset(Dataset):
                 self.stack = self.stack[:-1]
             else:
                 return torch.from_numpy(sample), mask # TODO convert to torch during init and figure out how to feed in mask
-

@@ -4,6 +4,15 @@ python main.py
 
 Zeta Finance
 
+Schedule
+- Preprocess pandas df into torch dataloader to parallelize dataloading  and start first run (Tue Aug 22)
+- Add code to load from checkpoints (Fri Aug 25)
+- Feed in text category also (Sun Aug 27)
+- Add code to simulate trading by predicting up, same, down (Fri Sep 1)
+- Make new dataset with alphavantage + other sources all combined, and allow for adding more data (i.e. options) in future (Fri Sep 8)
+- Connect model to td ameritrade for front-end (Fri Sep 15)
+- Make $100,000 in earnings total (Sun Oct 15)
+
 Project Overview
 - Train a self supervised model on a large corpus of financial data through decoder-only architecture
 - Feed in various historical features like last 32-64 days volume, last 64-128 days open price, etc. and then
@@ -35,7 +44,10 @@ To-Do for the MVP:
 - add code to store/load from checkpoints
 - add environment.yml to load this anywhere
 
+
 Future Steps:
+- based on SAINT paper, make the embedding for continuous variables a single ReLU layer with linesr before and after (as opposed to single linear?)
+- SAINT paper intersample attention
 - Try to see if can collate variable length tensors into the batch, and also keep track of the input name
  (might be more complex leave for later) rather than just padding 0s
 - we may need moving average instead of returns wrt previous day (people do this normally, sasmit mentioned also)
