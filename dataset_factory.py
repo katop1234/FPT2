@@ -1,90 +1,94 @@
-import torch
-from torch.utils.data import Dataset, DataLoader
+import numpy as np
 import pandas as pd
+import torch
 import utils
+from torch.utils.data import Dataset
 
-'''
-This script takes in the pandas df and then creates a custom dataset class that can be used with the DataLoader for 
-parallelized training.
+date_ranges = utils.get_date_ranges()
+base_categories = utils.base_categories()
+time2vec_categories = utils.get_time2vec_categories()
+token_length = 2 ** utils.POWER_OF_2
+num_categories = len(base_categories) + len(time2vec_categories)
+num_tokens = len(date_ranges) * num_categories
+class Ticker:
+    def __init__(self, metadata):
+        self.ticker = metadata["ticker"]
+        # self.start_date = metadata["start_date"]
+        # self.end_date = metadata["end_date"]
+        self.num_rows = metadata["num_rows"]
+        self.raw_data = metadata["raw_data"]
+        self.gt = metadata["gt"]
 
-Steps:
-Define the Categories and Windows:
+        self.counter = 365 # TODO make hyperparameter
 
-Define your base categories like Open, High, Low, Close, Adj Close, and Volume.
-Determine the window sizes as per your requirement (e.g., Open_Last_0_1_Days, Volume_Last_2516_3452_Days).
-Create new columns in the DataFrame for each of these categories using the window sizes.
-Preprocess the Data:
+    # one datapoint, 200 tokens of length 256
+    # 20 time windows, of 10 categories
+    def gen_function(self):
+        if self.counter >= self.num_rows:
+            return None
+        datapoint = np.empty((0, token_length))
+        mask = []
+        for start, end in date_ranges:
+            if self.counter - end < 0:
+                mask += [False] * num_categories
+                array = np.empty((num_categories, token_length))
+            else:
+                mask += [True] * num_categories
+                array = self.raw_data[self.counter-end:self.counter-start]
+                array = array.T
+                if array.shape[1] < token_length:
+                    np.hstack(array, np.zeros((array.shape[0], token_length-array.shape[1])))
 
-Iterate through the DataFrame and fill the newly created columns with the appropriate values from the existing columns based on the window sizes.
-Apply padding with zeros to make all sequences have the same length (default_data_dim).
-Ensure that the data is processed for all weekdays and has been checked for null/continuity.
-Create a Custom PyTorch Dataset:
+            datapoint = np.vstack(datapoint, array)
 
-Define a custom dataset class that inherits from torch.utils.data.Dataset.
-Initialize the dataset with the preprocessed DataFrame and the list of newly created columns (features).
-Implement the __len__ and __getitem__ methods to return the size of the dataset and retrieve a specific item, respectively.
-Create a PyTorch DataLoader:
+        self.counter += 1
+        return datapoint, mask
 
-Use the custom dataset to create a DataLoader, which can handle batching, shuffling, and parallel loading.
-Set the batch size and other DataLoader parameters as needed.
-Use the DataLoader in Training/Evaluation:
-
-Iterate through the DataLoader in your training or evaluation loop, and it will yield batches of data that you can pass through your model.
-Remember we don't want to randomly sample, but instead pass thru it over time.
-'''
-
-# Assuming utils.read is a function that reads the serialized data
-df = utils.read("SNPdata.ser")
-
-# Your code for base_categories() and get_floats_categories() here...
-
-# Assuming df is your DataFrame
-categories = utils.get_floats_categories()
-default_data_dim = 1280
-
-# Iterate through categories to create and populate new columns
-for category in categories:
-    base_cat, start_window, end_window = category.split('_')[0], int(category.split('_')[1]), int(category.split('_')[-2])
-    col_name = f"{base_cat}_{start_window}_{end_window}_days"
-    df[col_name] = 0  # Initialize column with zeros
-
-    # Populate column values based on window and base category
-    for index, row in df.iterrows():
-        if index >= end_window:
-            values = df[base_cat][index - end_window:index - start_window].values
-            if len(values) < default_data_dim:
-                values = [0] * (default_data_dim - len(values)) + list(values)
-            df.at[index, col_name] = values  # Assuming that the values are stored as a list or similar structure
-
-
-# Create a custom dataset class
 class FinancialDataset(Dataset):
-    def __init__(self, dataframe, input_features, target_feature):
-        self.dataframe = dataframe
-        self.input_features = input_features
-        self.target_feature = target_feature
+    def __init__(self, df_path):
+        self.df = utils.read(df_path)
+        self.ticker_names = self.df["Ticker"].unique()
+        self.df.set_index(["Ticker", "Date"])
+        # each ticker needs start date, num_rows, numpy array of input features, gt vector
+        self.ticker_metadata = {}
+
+        for ticker in self.ticker_names:
+            self.add_ticker_metadata(ticker)
+
+
+
+        # by the end of the init method return a tensor of shape
+        # (num_features=num_categories*num_windows=10*20, max_dim=256)
+
+    def add_ticker_metadata(self, ticker):
+        ticker_df = self.df.loc[ticker]
+        start_date = ticker_df["Date"][0]
+        end_date = ticker_df["Date"][-1]
+        num_rows = len(ticker_df)
+        ticker_df = ticker_df.reset_index()
+        ticker_df = ticker_df.drop(columns=["Date", "TypicalPrice"])
+        np_array = ticker_df.to_numpy()
+        gt_vector, raw_data = np_array[:, -1], np_array[:, :-1]
+
+        metadata = {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date,
+            "num_rows": num_rows,
+            "raw_data": raw_data,
+            "gt": gt_vector,
+                    }
+
+        self.ticker_metadata[ticker] = metadata
 
     def __len__(self):
-        return len(self.dataframe)
+        return len(self.df)
 
     def __getitem__(self, idx):
-        inputs = torch.tensor([self.dataframe[feature][idx] for feature in self.input_features], dtype=torch.float32)
-        target = torch.tensor(self.dataframe[self.target_feature][idx], dtype=torch.float32)
-        return inputs, target
+        # call gen function for next ticker in stack
 
-# List of input feature columns, you can modify as needed
-input_features = categories  # Categories we created earlier
-target_feature = 'gt'  # Modify this as needed
+        return sample
 
-# Create the custom dataset
-dataset = FinancialDataset(df, input_features, target_feature)
-
-# Create the DataLoader
-batch_size = 64
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-
-# Example of loading data to GPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-for batch_inputs, batch_targets in dataloader:
-    batch_inputs, batch_targets = batch_inputs.to(device), batch_targets.to(device)
-    # Your model training or evaluation code here
+# Example usage:
+dataset = FinancialDataset("path_to_your_data.csv")
+sample = dataset[0]  # Fetch the first sample from the dataset

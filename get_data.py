@@ -1,3 +1,5 @@
+import os.path
+
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -21,7 +23,7 @@ def get_single_ticker_data_yfinance(ticker):
     Columns are: Open, High, Low, Close, Adj Close, Volume, Ticker, Year, Month, Day
     '''
     # set the start date to the earliest possible date
-    data = yf.download(ticker, start='1970-01-01', end='2022-01-01')
+    data = yf.download(ticker, start='1970-01-01', end='2020-01-01')
     
     # Ensure that the dates are within the expected range
     if not data.empty and ((data.index < pd.Timestamp('1970-01-01')) | (data.index > pd.Timestamp('2022-01-01'))).any():
@@ -119,6 +121,8 @@ df.interpolate(method='linear', inplace=True)
 
 def write_single_ticker_data_yfinance():
     all_data = read("SNPdata.ser")
+    if not os.path.exists("./serialized/ticker_data/"):
+        os.mkdir("./serialized/ticker_data/")
     for ticker in all_data["Ticker"].unique():
         try:
             ticker_data = get_single_ticker_data_yfinance(ticker)
@@ -127,6 +131,6 @@ def write_single_ticker_data_yfinance():
             print(f"Could not fetch data for {ticker}. Reason: {e}")
             continue
 
+# write_all_SNP500_data()
+write_single_ticker_data_yfinance()
 
-#write_single_ticker_data_yfinance()
-#write_all_SNP500_data()

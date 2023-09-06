@@ -61,8 +61,8 @@ class ContinuousEmbeddingMLP(PrintableModule):
         mlp_factor = 4
 
         self.norm = nn.LayerNorm(input_size)
-        self.norm.weight.data.fill_(scale)
-        self.norm.bias.data.fill_(bias)
+        self.norm.weight.df.fill_(scale)
+        self.norm.bias.df.fill_(bias)
         self.layers = nn.ModuleList()
 
         # Input layer
@@ -90,8 +90,8 @@ class ContinuousEmbedding(PrintableModule):
         super().__init__()
         
         self.norm = nn.LayerNorm(input_size)
-        self.norm.weight.data.fill_(scale)
-        self.norm.bias.data.fill_(bias)
+        self.norm.weight.df.fill_(scale)
+        self.norm.bias.df.fill_(bias)
         
         self.linear = nn.Linear(input_size, output_size)
     

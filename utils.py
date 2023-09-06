@@ -4,7 +4,8 @@ import pyarrow.feather as feather
 import torch.distributed as dist
 import torch
 
-serialized_dir = "/shared/katop1234/FPT2/serialized/"
+serialized_dir = "./serialized/"
+POWER_OF_2 = 8 # TODO hyperparameter
 
 # Efficient serialization for large objects
 def write_feather(df, path):
@@ -112,6 +113,29 @@ def base_categories():
     categories = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
     return categories
 
+
+def get_date_ranges():
+    '''
+    For getting the windows, here's how the logic works. If we feed in power_of_2 = 8 and num_mults = 12,
+    then we get the following windows:
+    [1, 2, 4, 8, 16, 32, 64, 128, 256] + [512, 768, 1024, 1280...3072]
+    And the size of the sequence will be power_of_2 + num_mults, which is 20 in this case.
+    So for each base category, we have 20 windows. For example, for Open, we have:
+    Open_0_1_days, Open_1_2_days ... Open_128_256_days, Open_256_512_days ... Open_2816_3072_days
+    '''
+
+    power_of_2 = POWER_OF_2  # TODO make hyperparameter
+    num_mults = 12  # TODO make hyperparameter
+    days_back = [2 ** i for i in range(0, power_of_2 + 1)] + [2 ** power_of_2 * (i + 1) for i in range(1, num_mults)]
+
+    output = []
+    for i in range(len(days_back)):
+        if i == 0:
+            output.append((0, days_back[i]))
+        else:
+            output.append((days_back[i - 1], days_back[i]))
+
+    return output
 def get_floats_categories():
     '''
     For getting the windows, here's how the logic works. If we feed in power_of_2 = 8 and num_mults = 12, 
