@@ -53,6 +53,7 @@ To-Do for the MVP:
 - figure out how to feed in the text category at the end
 
 Future Steps:
+- maybe filter out for stocks such that they didnt go bankrupt or exhibit odd behaviors
 - Try to see if can collate variable length tensors into the batch, and also keep track of the input name
  (might be more complex leave for later) rather than just padding 0s
 - we may need moving average instead of returns wrt previous day (people do this normally, sasmit mentioned also)
