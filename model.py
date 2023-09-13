@@ -6,6 +6,7 @@ from classes import (
     TickerEmbedding, ContinuousEmbedding, CategoryEmbedding)
 import numpy as np
 import pandas as pd
+import torch.nn.functional as F
 
 class FPT(nn.Module):
     def __init__(self,
@@ -199,8 +200,18 @@ class FPT(nn.Module):
 
         return x, attention_mask, gt
     
+    def pad_x_for_embed_dim(self, tensor):
+        padding_size = self.embed_dim - tensor.size(1)
+        if padding_size > 0:
+            tensor = F.pad(tensor, (0, padding_size))
+        return tensor
+    
     def forward_decoder(self, x, attention_mask=None):
+        
+        x = self.pad_x_for_embed_dim(x)
+        print(x.shape, self.decoder_input_proj)
         x = self.decoder_input_proj(x)
+        
         for blk in self.decoder_blocks:
             x = blk(x, attention_mask)
         x = self.decoder_norm(x)

@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 date_ranges = utils.get_date_ranges()
 base_categories = utils.base_categories()
 time2vec_categories = utils.get_time2vec_categories()
-token_length = 2 ** utils.POWER_OF_2
+token_length = 2 ** utils.POWER_OF_2 # Dimensionality of token
 num_categories = len(base_categories) + len(time2vec_categories)
 num_tokens = len(date_ranges) * num_categories
 
@@ -26,8 +26,8 @@ class Ticker:
     # 20 time windows, of 10 categories
     def gen_function(self):
         if self.counter >= self.num_rows:
-            return None
-        datapoint = np.empty((0, token_length))
+            return (None, None, None)
+        X = np.empty((0, token_length))
         mask = []
         for start, end in date_ranges:
             if self.counter - end < 0:
@@ -38,18 +38,24 @@ class Ticker:
                 array = self.raw_data[self.counter-end:self.counter-start]
                 array = array.T
                 if array.shape[1] < token_length:
-                    np.hstack(array, np.zeros((array.shape[0], token_length-array.shape[1])))
+                    # TODO is it ok to pad with 0s since those are within the range of values for returns?
+                    padding = np.zeros((array.shape[0], token_length-array.shape[1]))
+                    array = np.hstack((array, padding))
 
-            datapoint = np.vstack(datapoint, array)
+            X = np.vstack((X, array))
+        
+        y = self.gt[self.counter]
+        
+        # TODO you may have to normalize the input values for consistency, altho layernorm should fix that
 
         self.counter += 1
-        return datapoint, mask
+        return X, mask, y
 
 class FinancialDataset(Dataset):
     def __init__(self, df_path):
         self.df = utils.read(df_path)
-        self.ticker_names = self.df["Ticker"].unique()
-        self.df.set_index(["Ticker", "Date"])
+        self.ticker_names = self.df["Ticker"].unique().tolist()
+        self.df = self.df.set_index(["Ticker"])
         # each ticker needs start date, num_rows, numpy array of input features, gt vector
         self.ticker_metadata = {}
         self.ticker_generator_lookup = {}
@@ -62,16 +68,17 @@ class FinancialDataset(Dataset):
     
     def pop_stack_and_move_to_back(self):
         popped = self.stack[0]
-        self.stack = self.stack[1:] + self.stack[0]
+        self.stack = self.stack[1:].append(self.stack[0])
         return popped
 
     def add_ticker_metadata(self, ticker):
         ticker_df = self.df.loc[ticker]
-        start_date = ticker_df["Date"][0]
-        end_date = ticker_df["Date"][-1]
+        ticker_df = ticker_df.sort_values(by="Date")
+        start_date = ticker_df["Date"].iloc[0]
+        end_date = ticker_df["Date"].iloc[-1]
         num_rows = len(ticker_df)
         ticker_df = ticker_df.reset_index()
-        ticker_df = ticker_df.drop(columns=["Date", "TypicalPrice"])
+        ticker_df = ticker_df.drop(columns=["Date", "TypicalPrice", "Ticker"])
         np_array = ticker_df.to_numpy()
         gt_vector, raw_data = np_array[:, -1], np_array[:, :-1]
 
@@ -93,13 +100,15 @@ class FinancialDataset(Dataset):
     def __getitem__(self, idx):
         # call gen function for next ticker in stack
         
+        # TODO add code for when all the tickers are done (i.e. stack is empty)
+        
         sample = None
         while sample is None:
             chosen_ticker = self.pop_stack_and_move_to_back()
             Ticker_generator = self.ticker_generator_lookup[chosen_ticker]
-            sample, mask = Ticker_generator.gen_function()
+            sample, mask, y = Ticker_generator.gen_function()
             if sample is None:
                 # done with that ticker
                 self.stack = self.stack[:-1]
             else:
-                return torch.from_numpy(sample), mask # TODO convert to torch during init and figure out how to feed in mask
+                return torch.from_numpy(sample), mask, y # TODO convert to torch during init and figure out how to feed in mask

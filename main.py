@@ -13,7 +13,7 @@ num_epochs = 1000
 total_batch_size = 1024
 batch_size_per_gpu = 64
 lr = 1.6e-3
-embed_dim = 128
+embed_dim = 1280
 depth = 32
 
 # Variables
