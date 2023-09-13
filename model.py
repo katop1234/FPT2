@@ -210,6 +210,8 @@ class FPT(nn.Module):
         
         x = self.pad_x_for_embed_dim(x)
         print(x.shape, self.decoder_input_proj)
+        # TODO use continuous embedding class here for each feature!
+        # you will have to check which features got fed in and apply the continuous embedding for each one!
         x = self.decoder_input_proj(x)
         
         for blk in self.decoder_blocks:
