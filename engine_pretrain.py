@@ -10,7 +10,7 @@ def train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     print("Starting one epoch")
     for i in range(accum_iter):
         x, mask, y = dataset[i]
-        x, loss, latents = model(x, mask, y)
+        loss = model(x, mask, y)
         epoch_loss += loss
 
     # calculate the backward pass

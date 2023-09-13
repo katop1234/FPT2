@@ -64,6 +64,7 @@ class FPT(nn.Module):
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)).cuda() * 0.02
         self.decoder_input_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.decoder_norm = nn.LayerNorm(self.embed_dim)
+        
         self.decoder_blocks = nn.ModuleList(
             [
                 TransformerBlock(
@@ -74,6 +75,7 @@ class FPT(nn.Module):
         )
         
         self.predictor = ContinuousUnembedding(self.embed_dim, 1)
+
     
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
@@ -209,19 +211,37 @@ class FPT(nn.Module):
     def forward_decoder(self, x, attention_mask=None):
         
         x = self.pad_x_for_embed_dim(x)
-        print(x.shape, self.decoder_input_proj)
+        x = x.unsqueeze(0)
+        
         # TODO use continuous embedding class here for each feature!
         # you will have to check which features got fed in and apply the continuous embedding for each one!
-        x = self.decoder_input_proj(x)
         
+        # TODO add categorical embeddings still
+        
+        # TODO properly add batches across GPUs
+        
+        x = self.decoder_input_proj(x)
+        x = self.append_cls(x)
+        
+        depth = 0
         for blk in self.decoder_blocks:
             x = blk(x, attention_mask)
+            # TODO this throws nans after 1-2 layers!!!
+            # TODO change the initialization for the weights
+            # TODO normalize input to be returns
+            depth += 1
+            print("cls token at depth", depth, x[:, 0, :])
         x = self.decoder_norm(x)
         cls_token = x[:, 0, :]
         return cls_token
     
     def forward_loss(self, cls_token, gt):
         pred = self.predictor(cls_token)
+        
+        print("types", type(gt), type(pred))
+        print("actuals", gt, pred)
+        print("shapes", gt.shape, pred.shape)
+        
         loss = utils.mean_squared_error(gt, pred)
         return loss
     

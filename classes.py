@@ -141,7 +141,9 @@ class Time2VecEmbedding(PrintableModule):
 
 # Maps the output of the decoder back to the original value
 class ContinuousUnembedding(ContinuousEmbedding):
-    pass
+    def forward(self, x):
+        x = self.norm(x) # Technically redundant but useful for large values like year which is 2000 and we need it to be 0->1
+        return self.linear(x)
 
 class Attention(nn.Module):
     '''
@@ -173,8 +175,8 @@ class Attention(nn.Module):
     def forward(
         self,
         x,
-        context = None,
         attention_mask = None,
+        context = None,
     ):
         h = self.heads
         x = self.norm(x)
@@ -182,15 +184,20 @@ class Attention(nn.Module):
         context = x if context is None else context
 
         qkv = (self.to_q(x), self.to_k(context), self.to_v(context))
+        # q, k = self.q_norm(q), self.k_norm(k) # Vit22B paper
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
         
-        q, k = self.q_norm(q), self.k_norm(k) # Vit22B paper
         q = q * self.scale
 
         sim = torch.einsum('b h i d, b h j d -> b h i j', q, k)
 
         if attention_mask is not None:
-            sim.masked_fill_(~attention_mask.unsqueeze(1).unsqueeze(2), float('-inf'))  # Fill masked positions with a large negative number
+            attention_mask = attention_mask.unsqueeze(0)  # Add batch dimension
+            attention_mask = attention_mask.unsqueeze(1).expand(-1, h, -1)  # Add heads dimension and expand to number of heads
+            attention_mask = attention_mask.unsqueeze(3)  # Add dimension for seq_len
+
+            sim.masked_fill_(~attention_mask, float('-inf'))
+
 
         attn = sim.softmax(dim = -1)
 

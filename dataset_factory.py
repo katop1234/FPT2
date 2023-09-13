@@ -111,4 +111,11 @@ class FinancialDataset(Dataset):
                 # done with that ticker
                 self.stack = self.stack[:-1]
             else:
-                return torch.from_numpy(sample), mask, y # TODO convert to torch during init and figure out how to feed in mask
+                x = torch.from_numpy(sample).float()
+                
+                mask = [True] + mask # for CLS
+                mask = torch.tensor(mask, dtype=torch.bool)
+                
+                y = torch.tensor(y, requires_grad=True).unsqueeze(0).unsqueeze(0)
+                
+                return x, mask, y # TODO convert to torch during init and figure out how to feed in mask
