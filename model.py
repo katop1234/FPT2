@@ -7,6 +7,9 @@ from classes import (
 import numpy as np
 import pandas as pd
 import torch.nn.functional as F
+import constants
+
+device = constants.device
 
 class FPT(nn.Module):
     def __init__(self,
@@ -61,7 +64,7 @@ class FPT(nn.Module):
         ## Get categorical embeddings and mask tokens to add to input embedding
         self.cat_embeddings = CategoryEmbedding(self.all_categories, embed_dim) # (same thing as pos emb for vit)
         
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)).cuda() * 0.02
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)).to(device) * 0.02
         self.decoder_input_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.decoder_norm = nn.LayerNorm(self.embed_dim)
         
@@ -213,6 +216,8 @@ class FPT(nn.Module):
         x = self.pad_x_for_embed_dim(x)
         x = x.unsqueeze(0)
         
+        # TODO figure out why the input is a bunch of 0s
+
         # TODO use continuous embedding class here for each feature!
         # you will have to check which features got fed in and apply the continuous embedding for each one!
         
@@ -228,7 +233,6 @@ class FPT(nn.Module):
             x = blk(x, attention_mask)
             # TODO this throws nans after 1-2 layers!!!
             # TODO change the initialization for the weights
-            # TODO normalize input to be returns
             depth += 1
             print("cls token at depth", depth, x[:, 0, :])
         x = self.decoder_norm(x)
@@ -246,6 +250,10 @@ class FPT(nn.Module):
         return loss
     
     def forward(self, x, attention_mask, gt):
+        x_np = x.numpy()
+        # Save numpy array to a text file
+        np.savetxt("tensor_data.txt", x_np, fmt="%s", delimiter=",")
+
         cls_token = self.forward_decoder(x, attention_mask)
         loss = self.forward_loss(cls_token, gt)
         return loss

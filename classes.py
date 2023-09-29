@@ -6,6 +6,9 @@ from einops import rearrange, einsum
 import pandas as pd
 from torch.utils.checkpoint import checkpoint
 import math
+import constants
+
+device = constants.device
 
 class PrintableModule(nn.Module):
     def __init__(self):
@@ -41,12 +44,12 @@ class CategoryEmbedding(PrintableModule):
         # Create a mapping from category strings to unique integers
         self.category_to_index = {category: i for i, category in enumerate(category_list)}
         
-        self.embed = nn.Embedding(len(category_list), embed_dim).cuda()
+        self.embed = nn.Embedding(len(category_list), embed_dim).to(device)
 
     def forward(self, category):
         # Convert the category string to an integer index
         index = self.category_to_index[category]
-        index = torch.tensor([index]).cuda()
+        index = torch.tensor([index]).to(device)
         
         # Use this index to get the corresponding embedding
         return self.embed(index).squeeze(0)
@@ -85,12 +88,16 @@ class ContinuousEmbeddingMLP(PrintableModule):
     
 # simple linear projection from input_size to output_size
 # previous MLP embedder might be overkill
-class ContinuousEmbedding(PrintableModule):
+class ContinuousEmbedding(nn.Module):  # Use nn.Module, PrintableModule seems to be not defined in the snippet
     def __init__(self, input_size, output_size, bias=0., scale=1.):
         super().__init__()
+        
         self.norm = nn.LayerNorm(input_size)
-        self.norm.weight.fill_(scale)
-        self.norm.bias.fill_(bias)
+        
+        # Modify the contents of the parameters rather than replacing them
+        with torch.no_grad():
+            self.norm.weight.fill_(scale)
+            self.norm.bias.fill_(bias)
         
         self.linear = nn.Linear(input_size, output_size)
     
@@ -101,9 +108,9 @@ class ContinuousEmbedding(PrintableModule):
 class TickerEmbedding(nn.Module):
     def __init__(self, ticker_list, embed_dim):
         super().__init__()
-        self.ticker_to_index = {ticker: torch.tensor(i, dtype=torch.long).cuda() for i, ticker in enumerate(ticker_list)}
+        self.ticker_to_index = {ticker: torch.tensor(i, dtype=torch.long).to(device) for i, ticker in enumerate(ticker_list)}
         self.embed_dim = embed_dim
-        self.embed = nn.Embedding(len(ticker_list), embed_dim).cuda()
+        self.embed = nn.Embedding(len(ticker_list), embed_dim).to(device)
         
         # Initialize all embeddings to be the same to make sure that the model doesn't overfit to variations in ticker embeddings
         self.embed.weight.data.fill_(0.02)  # or any other constant
@@ -127,10 +134,10 @@ class Time2VecEmbedding(PrintableModule):
         
     def forward(self, time):
         time = time % self.modulus
-        omega = 2 * math.pi / self.modulus
+        time /= self.modulus
 
         # Apply the periodic and linear transformations
-        periodic_transform = torch.sin(omega * self.periodic_linear(time))
+        periodic_transform = torch.sin(2 * math.pi * self.periodic_linear(time))
         linear_transform = self.linear(time)
         
         # Concatenate along the last dimension to create the final embedding

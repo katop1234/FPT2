@@ -36,7 +36,10 @@ def main_worker(gpu, ngpus_per_node):
     model = FPT(embed_dim=embed_dim,
                  depth=depth,
                  batch_size=batch_size_per_gpu,
-                ).cuda(gpu)
+                )
+    
+    if num_gpus > 0:
+        model = model.cuda(gpu)
 
     if num_gpus > 1:
         model = DDP(model, device_ids=[gpu])

@@ -75,6 +75,45 @@ def calculate_gt(group):
     group.drop(columns=['shifted_price'], inplace=True)
     return group
 
+import pandas as pd
+from tqdm import tqdm
+
+def normalize_column(df):
+    '''
+    Use this to normalize specified columns within each ticker group.
+    '''
+    normalizing_cols = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+    
+    def normalize(group):
+        # Compute the relative change for specified columns
+        group[normalizing_cols] = group[normalizing_cols].pct_change().fillna(0)
+        return group
+
+    # Wrap the groupby object with tqdm for progress bar
+    tqdm.pandas()
+    return df.groupby('Ticker').progress_apply(normalize)
+
+def normalize_column(df):
+    '''
+    Use this to normalize specified columns within each ticker group.
+    '''
+    normalizing_cols = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+    
+    def normalize(group):
+        # Compute the relative change for specified columns
+        group[normalizing_cols] = group[normalizing_cols].pct_change().fillna(0)
+        return group
+
+    # List to collect processed DataFrames for each ticker
+    processed_data = []
+
+    # Iterate over each ticker, apply the normalize function, and collect the result
+    for ticker, group in tqdm(df.groupby('Ticker'), desc="Processing tickers"):
+        processed_data.append(normalize(group))
+
+    # Combine the processed data together
+    return pd.concat(processed_data)
+
 def write_all_SNP500_data():
     '''
     Writes all SNP500 data to a file
@@ -132,5 +171,5 @@ def write_single_ticker_data_yfinance():
             continue
 
 # write_all_SNP500_data()
-write_single_ticker_data_yfinance()
+#write_single_ticker_data_yfinance()
 

@@ -68,7 +68,7 @@ class FinancialDataset(Dataset):
     
     def pop_stack_and_move_to_back(self):
         popped = self.stack[0]
-        self.stack = self.stack[1:].append(self.stack[0])
+        self.stack = self.stack[1:] + [self.stack[0]]
         return popped
 
     def add_ticker_metadata(self, ticker):
