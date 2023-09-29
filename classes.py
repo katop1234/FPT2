@@ -89,16 +89,10 @@ class ContinuousEmbeddingMLP(PrintableModule):
 # simple linear projection from input_size to output_size
 # previous MLP embedder might be overkill
 class ContinuousEmbedding(nn.Module):  # Use nn.Module, PrintableModule seems to be not defined in the snippet
-    def __init__(self, input_size, output_size, bias=0., scale=1.):
+    def __init__(self, input_size, output_size):
         super().__init__()
         
         self.norm = nn.LayerNorm(input_size)
-        
-        # Modify the contents of the parameters rather than replacing them
-        with torch.no_grad():
-            self.norm.weight.fill_(scale)
-            self.norm.bias.fill_(bias)
-        
         self.linear = nn.Linear(input_size, output_size)
     
     def forward(self, x):
@@ -124,24 +118,25 @@ class TickerEmbedding(nn.Module):
 
         return embedding
 
-    
-class Time2VecEmbedding(PrintableModule):
-    def __init__(self, modulus, embed_dim):
-        super().__init__()
-        self.modulus = modulus
-        self.periodic_linear = nn.Linear(1, embed_dim // 2)
-        self.linear = nn.Linear(1, embed_dim // 2)
+
+class Time2VecEmbedding(PrintableModule): # It seems "PrintableModule" is custom; use nn.Module if it's not available
+    def __init__(self, embed_dim):
+        super(Time2VecEmbedding, self).__init__() # Modified super() for clarity
+        self.embed_dim = embed_dim
+        self.linear_transform = nn.Linear(embed_dim, embed_dim)
         
     def forward(self, time):
-        time = time % self.modulus
-        time /= self.modulus
-
-        # Apply the periodic and linear transformations
-        periodic_transform = torch.sin(2 * math.pi * self.periodic_linear(time))
-        linear_transform = self.linear(time)
+        # Applying sin(2πx) to the first half
+        sin_transform = torch.sin(2 * math.pi * time)
         
-        # Concatenate along the last dimension to create the final embedding
-        embedding = torch.cat([periodic_transform, linear_transform], dim=-1)
+        # Keeping the second half unchanged
+        unchanged = time[..., self.embed_dim//2:]
+        
+        # Concatenating both parts
+        combined = torch.cat((sin_transform[..., :self.embed_dim//2], unchanged), dim=-1)
+
+        # Applying linear transformation
+        embedding = self.linear_transform(combined)
 
         return embedding
 
@@ -168,8 +163,8 @@ class Attention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
         
-        self.q_norm = nn.LayerNorm(dim)
-        self.k_norm = nn.LayerNorm(dim)
+        self.q_norm = nn.LayerNorm(dim_head)
+        self.k_norm = nn.LayerNorm(dim_head)
 
         self.norm = nn.LayerNorm(dim)
 
@@ -190,8 +185,9 @@ class Attention(nn.Module):
         context = x if context is None else context
 
         qkv = (self.to_q(x), self.to_k(context), self.to_v(context))
-        # q, k = self.q_norm(q), self.k_norm(k) # Vit22B paper
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
+
+        q, k = self.q_norm(q), self.k_norm(k) # Vit22B paper
         
         q = q * self.scale
 

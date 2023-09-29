@@ -8,8 +8,9 @@ date_ranges = utils.get_date_ranges()
 base_categories = utils.base_categories()
 time2vec_categories = utils.get_time2vec_categories()
 token_length = 2 ** utils.POWER_OF_2 # Dimensionality of token
+num_base_categories = len(base_categories)
 num_categories = len(base_categories) + len(time2vec_categories)
-num_tokens = len(date_ranges) * num_categories
+num_tokens = len(date_ranges) * len(base_categories) + len(time2vec_categories)
 
 class Ticker:
     def __init__(self, metadata):
@@ -31,11 +32,15 @@ class Ticker:
         mask = []
         for start, end in date_ranges:
             if self.counter - end < 0:
-                mask += [False] * num_categories
-                array = np.empty((num_categories, token_length))
+                mask += [False] * num_base_categories
+                array = np.ones((num_base_categories, token_length)) #TODO change to zeros when done, 1 for debugging
             else:
-                mask += [True] * num_categories
-                array = self.raw_data[self.counter-end:self.counter-start]
+                mask += [True] * num_base_categories
+                # print(self.raw_data.shape)
+                # print(self.raw_data)
+                # exit()
+                array = self.raw_data[self.counter-end:self.counter-start, :-len(time2vec_categories)]
+                # WARNING find a better way to feed in the raw price values without hardcoding out the time2vec parts
                 array = array.T
                 if array.shape[1] < token_length:
                     # TODO is it ok to pad with 0s since those are within the range of values for returns?
@@ -43,10 +48,18 @@ class Ticker:
                     array = np.hstack((array, padding))
 
             X = np.vstack((X, array))
+            print("shape of X", X.shape, "for start end", start, end)
+
+        for time2vec_idx in range(len(time2vec_categories)):
+            time2vec_token = np.ones(token_length) * self.raw_data[self.counter, -len(time2vec_categories) + time2vec_idx]
+            X = np.vstack((X, time2vec_token))
+            mask += [True]
+            print("shape of X", X.shape, "for start end", start, end)
+        
+        print("end X", X)
+        np.savetxt("array_data.txt", X, fmt="%s", delimiter=",")
         
         y = self.gt[self.counter]
-        
-        # TODO you may have to normalize the input values for consistency, altho layernorm should fix that
 
         self.counter += 1
         return X, mask, y

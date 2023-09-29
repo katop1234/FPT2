@@ -31,6 +31,7 @@ def get_single_ticker_data_yfinance(ticker):
     
     data['Ticker'] = ticker
     data.reset_index(inplace=True)
+    
     data['Year'] = data['Date'].dt.year
     data['Month'] = data['Date'].dt.month
     data['Day'] = data['Date'].dt.day
@@ -145,6 +146,12 @@ def write_all_SNP500_data():
     print(f"Filled {num_nans_before} missing values with forward and backward fill.")
     
     df = df[df['Ticker'] != 0]
+
+    # Normalize datetime columns
+    df["Year"] = (df["Year"] - 1900) / 150
+    df["Month"] = (df["Month"] - 1) / 12 
+    df["Day"] = (df["Day"] - 1) / 31
+    df["Weekday"] = df["Weekday"] / 5
 
     write(df, "SNPdata.ser")
 
