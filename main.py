@@ -18,7 +18,10 @@ depth = 16
 
 # Variables
 num_gpus = torch.cuda.device_count()
-accum_iter = total_batch_size // (batch_size_per_gpu * num_gpus)
+if num_gpus == 0:
+    accum_iter = total_batch_size // (batch_size_per_gpu)
+else:
+    accum_iter = total_batch_size // (batch_size_per_gpu * num_gpus)
 
 def main_worker(gpu, ngpus_per_node):
     os.environ['RANK'] = str(gpu)
@@ -55,7 +58,10 @@ def main_worker(gpu, ngpus_per_node):
 def main():
     ngpus_per_node = torch.cuda.device_count()
     print(f"Using {ngpus_per_node} GPUs")
-    mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node,))
+    if ngpus_per_node == 0:
+        main_worker(0, 0)
+    else:
+        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node,))
 
 if __name__ == "__main__":
     main()

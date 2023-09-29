@@ -88,11 +88,10 @@ class ContinuousEmbeddingMLP(PrintableModule):
 class ContinuousEmbedding(PrintableModule):
     def __init__(self, input_size, output_size, bias=0., scale=1.):
         super().__init__()
-        
         self.norm = nn.LayerNorm(input_size)
-        self.norm.weight.data = torch.full_like(self.norm.weight, scale)
-        self.norm.bias.data = torch.full_like(self.norm.bias, bias)
-
+        self.norm.weight.fill_(scale)
+        self.norm.bias.fill_(bias)
+        
         self.linear = nn.Linear(input_size, output_size)
     
     def forward(self, x):
