@@ -30,7 +30,7 @@ class FPT(nn.Module):
         self.seq_len = len(self.all_categories) + 1 # +1 for the cls token
         
         # (Only ["Ticker"] for now)
-        ticker_list = utils.get_ticker_list()
+        self.ticker_list = utils.get_ticker_list()
 
         # TODO change this from being hardcoded to 4
         self.cont_embeds = nn.ModuleList([ContinuousEmbedding(embed_dim, embed_dim) for _ in range(self.seq_len - 4 - 1)]) # 1 for cls
@@ -54,12 +54,21 @@ class FPT(nn.Module):
         
         self.predictor = ContinuousUnembedding(self.embed_dim, 1)
 
+        def initialize_weights(module):
+            if isinstance(module, (nn.Linear)):
+                module.weight.data.normal_(mean=0, std=0.02)
+                if module.bias is not None:
+                    module.bias.data.zero_()
+            elif isinstance(module, nn.LayerNorm):
+                module.bias.data.zero_()
+                module.weight.data.fill_(1.0)
+
+        self.apply(initialize_weights)
     
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat([cls_token, x], dim=1)
         return x
-
 
     def pad_x_for_embed_dim(self, tensor):
         padding_size = self.embed_dim - tensor.size(1)
@@ -68,32 +77,57 @@ class FPT(nn.Module):
         return tensor
     
     def forward_decoder(self, x, attention_mask=None):
+
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values in input: {nan_count}")
         
         x = self.pad_x_for_embed_dim(x)
         x = x.unsqueeze(0)
 
         # Separate tokens
         out = []
-        
+
         # Apply ContinuousEmbedding to the first (seq_len - 4) tokens
         # TODO see if this can be parallelized
         for i in range(len(self.cont_embeds)):
-            out.append(self.cont_embeds[i](x[:, i, :]).unsqueeze(1))
-        
+            embed_output = self.cont_embeds[i](x[:, i, :]).unsqueeze(1)
+            nan_count = torch.isnan(embed_output).sum().item()
+            if nan_count > 0:
+                print(f"ContinuousEmbedding loop added {nan_count} NaNs at index {i}")
+            out.append(embed_output)
+
         # Apply Time2VecEmbedding to the last 4 tokens
         for i in range(len(self.time2vec_embeds)):
-            out.append(self.time2vec_embeds[i](x[:, -4 + i, :]).unsqueeze(1)) # TODO don't hardcode 4
+            embed_output = self.time2vec_embeds[i](x[:, -4 + i, :]).unsqueeze(1)  # TODO don't hardcode 4
+            nan_count = torch.isnan(embed_output).sum().item()
+            if nan_count > 0:
+                print(f"Time2VecEmbedding loop added {nan_count} NaNs at index {-4+i}")
+            out.append(embed_output)
             # TODO have year be a continuous embedding since its not periodic
-        
+
         # Concatenate results across the sequence length dimension
         x = torch.cat(out, dim=1)
 
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values after embedding: {nan_count}")
+
         x += self.cat_embeddings
+
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values after adding cat embedding: {nan_count}")
         
         # TODO properly add batches across GPUs
         
-        x = self.decoder_input_proj(x)
+        # x = self.decoder_input_proj(x)
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values after decoder input proj: {nan_count}")
         x = self.append_cls(x)
+
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values before block: {nan_count}")
+        x_np = x.squeeze(0).detach().numpy()
+        # Save numpy array to a text file
+        np.savetxt("tensor_data.txt", x_np, fmt="%s", delimiter=",")
         
         depth = 0
         for blk in self.decoder_blocks:
@@ -102,6 +136,13 @@ class FPT(nn.Module):
             # TODO change the initialization for the weights
             depth += 1
             print("cls token at depth", depth, x[:, 0, :])
+
+            num_nans =  (torch.isnan(x).sum().item())
+            if num_nans > 0:
+                print("got", num_nans, "nans")
+                exit()
+
+
         x = self.decoder_norm(x)
         cls_token = x[:, 0, :]
         return cls_token
@@ -117,6 +158,7 @@ class FPT(nn.Module):
         return loss
     
     def forward(self, x, attention_mask, gt):
+
 
         x_np = x.numpy()
         # Save numpy array to a text file

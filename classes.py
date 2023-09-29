@@ -92,11 +92,10 @@ class ContinuousEmbedding(nn.Module):  # Use nn.Module, PrintableModule seems to
     def __init__(self, input_size, output_size):
         super().__init__()
         
-        self.norm = nn.LayerNorm(input_size)
+        #self.norm = nn.LayerNorm(input_size)
         self.linear = nn.Linear(input_size, output_size)
     
     def forward(self, x):
-        x = self.norm(x) # Technically redundant but useful for large values like year which is 2000 and we need it to be 0->1
         return self.linear(x)
 
 class TickerEmbedding(nn.Module):
@@ -143,7 +142,6 @@ class Time2VecEmbedding(PrintableModule): # It seems "PrintableModule" is custom
 # Maps the output of the decoder back to the original value
 class ContinuousUnembedding(ContinuousEmbedding):
     def forward(self, x):
-        x = self.norm(x) # Technically redundant but useful for large values like year which is 2000 and we need it to be 0->1
         return self.linear(x)
 
 class Attention(nn.Module):
@@ -182,28 +180,47 @@ class Attention(nn.Module):
         h = self.heads
         x = self.norm(x)
 
+        print('x after norm', (torch.isnan(x).sum().item()), x)
+
         context = x if context is None else context
 
         qkv = (self.to_q(x), self.to_k(context), self.to_v(context))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
+        print('q', (torch.isnan(q).sum().item()), q)
+        print('k', (torch.isnan(k).sum().item()), k)
+        print('v', (torch.isnan(v).sum().item()), v)
+
         q, k = self.q_norm(q), self.k_norm(k) # Vit22B paper
+
+        print('q after norm', (torch.isnan(q).sum().item()), q)
+        print('k after norm', (torch.isnan(k).sum().item()), k)
+
+        print("min of q", torch.min(q), "max of q", torch.max(q))
+        print("min of k", torch.min(k), "max of k", torch.max(k))
         
         q = q * self.scale
 
         sim = torch.einsum('b h i d, b h j d -> b h i j', q, k)
 
+        print("sim", (torch.isnan(sim).sum().item()), sim)
+
         if attention_mask is not None:
             attention_mask = attention_mask.unsqueeze(0)  # Add batch dimension
             attention_mask = attention_mask.unsqueeze(1).expand(-1, h, -1)  # Add heads dimension and expand to number of heads
-            attention_mask = attention_mask.unsqueeze(3)  # Add dimension for seq_len
+            attention_mask = attention_mask.unsqueeze(2).expand(-1, h, -1, sim.size(-1))  # Add a dimension before seq_len
 
             sim.masked_fill_(~attention_mask, float('-inf'))
 
+        print("min of sim", torch.min(sim), "max of sim", torch.max(sim))
 
         attn = sim.softmax(dim = -1)
 
+        print("attn", (torch.isnan(attn).sum().item()), attn)
+
         out = torch.einsum('b h i j, b h j d -> b h i d', attn, v)
+
+        print("out", (torch.isnan(out).sum().item()), out)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
@@ -227,12 +244,18 @@ class TransformerBlock(nn.Module):
     def __init__(self, dim, heads=16):
         super().__init__()
 
-        self.cross_attention = Attention(dim, heads)
+        self.attention = Attention(dim, heads)
         self.feed_forward = FeedForward(dim)
 
     def forward(self, x, context=None, attention_mask=None):
-        x = self.cross_attention(x, context, attention_mask) + x
+        x = self.attention(x, context, attention_mask) + x
+        print("x after cross attn", x, torch.min(x), torch.max(x))
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values: {nan_count}")
         x = self.feed_forward(x) + x
+        print("x after ff", x, torch.min(x), torch.max(x))
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values: {nan_count}")
 
         return x
 
