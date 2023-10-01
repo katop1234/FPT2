@@ -82,16 +82,14 @@ def normalize_column(df):
     Use this to normalize specified columns within each ticker group.
     '''
     normalizing_cols = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
-    
-    def normalize(group):
-        # Compute the relative change for specified columns
-        return group[normalizing_cols].pct_change().fillna(0)
 
-    # Use transform to apply the normalization across all groups
+    def normalize(group):
+        return group.pct_change().fillna(0)
+
+    # Apply normalization directly to the specified columns
     df[normalizing_cols] = df.groupby('Ticker')[normalizing_cols].transform(normalize)
     
     return df
-
 
 def write_all_SNP500_data():
     '''
