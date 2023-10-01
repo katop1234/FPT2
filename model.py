@@ -3,7 +3,7 @@ import torch
 import utils
 from classes import (
     TransformerBlock, ContinuousUnembedding, Time2VecEmbedding, 
-    TickerEmbedding, ContinuousEmbedding, CategoryEmbedding)
+    TickerEmbedding, LinearProjection, CategoryEmbedding)
 import numpy as np
 import pandas as pd
 import torch.nn.functional as F
@@ -33,15 +33,17 @@ class FPT(nn.Module):
         self.ticker_list = utils.get_ticker_list()
 
         # TODO change this from being hardcoded to 4
-        self.cont_embeds = nn.ModuleList([ContinuousEmbedding(embed_dim, embed_dim) for _ in range(self.seq_len - 4 - 1)]) # 1 for cls
-        self.time2vec_embeds = nn.ModuleList([Time2VecEmbedding(embed_dim) for _ in range(4)])
+        self.continuous_embeddings = nn.ModuleList([nn.Linear(embed_dim, embed_dim) for _ in range(self.seq_len - 4 - 1)]) # 1 for cls
+        self.time2vec_embeddings = nn.ModuleList([Time2VecEmbedding(embed_dim) for _ in range(4)])
 
         ## Get categorical embeddings and mask tokens to add to input embedding
-        self.cat_embeddings = torch.randn(self.seq_len - 1, self.embed_dim) * 0.02 # remove 1 for cls
+        self.categorical_embeddings = torch.randn(self.seq_len - 1, self.embed_dim) * 0.02 # remove 1 for cls
+        
+        self.decoder_input_norm = nn.LayerNorm(self.embed_dim)
         
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)).to(device) * 0.02
-        self.decoder_input_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.decoder_norm = nn.LayerNorm(self.embed_dim)
+        # self.decoder_input_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.decoder_output_norm = nn.LayerNorm(self.embed_dim)
         
         self.decoder_blocks = nn.ModuleList(
             [
@@ -52,7 +54,7 @@ class FPT(nn.Module):
             ]
         )
         
-        self.predictor = ContinuousUnembedding(self.embed_dim, 1)
+        self.predictor = nn.Linear(self.embed_dim, 1)
 
         def initialize_weights(module):
             if isinstance(module, (nn.Linear)):
@@ -80,6 +82,9 @@ class FPT(nn.Module):
 
         nan_count = torch.isnan(x).sum().item()
         print(f"Number of NaN values in input: {nan_count}")
+        if nan_count > 0:
+            print("got", nan_count, "nans")
+            exit()
         
         x = self.pad_x_for_embed_dim(x)
         x = x.unsqueeze(0)
@@ -89,16 +94,16 @@ class FPT(nn.Module):
 
         # Apply ContinuousEmbedding to the first (seq_len - 4) tokens
         # TODO see if this can be parallelized
-        for i in range(len(self.cont_embeds)):
-            embed_output = self.cont_embeds[i](x[:, i, :]).unsqueeze(1)
+        for i in range(len(self.continuous_embeddings)):
+            embed_output = self.continuous_embeddings[i](x[:, i, :]).unsqueeze(1)
             nan_count = torch.isnan(embed_output).sum().item()
             if nan_count > 0:
                 print(f"ContinuousEmbedding loop added {nan_count} NaNs at index {i}")
             out.append(embed_output)
 
         # Apply Time2VecEmbedding to the last 4 tokens
-        for i in range(len(self.time2vec_embeds)):
-            embed_output = self.time2vec_embeds[i](x[:, -4 + i, :]).unsqueeze(1)  # TODO don't hardcode 4
+        for i in range(len(self.time2vec_embeddings)):
+            embed_output = self.time2vec_embeddings[i](x[:, -4 + i, :]).unsqueeze(1)  # TODO don't hardcode 4
             nan_count = torch.isnan(embed_output).sum().item()
             if nan_count > 0:
                 print(f"Time2VecEmbedding loop added {nan_count} NaNs at index {-4+i}")
@@ -110,24 +115,41 @@ class FPT(nn.Module):
 
         nan_count = torch.isnan(x).sum().item()
         print(f"Number of NaN values after embedding: {nan_count}")
+        if nan_count > 0:
+            print("got", nan_count, "nans")
+            exit()
 
-        x += self.cat_embeddings
+        x += self.categorical_embeddings
 
         nan_count = torch.isnan(x).sum().item()
         print(f"Number of NaN values after adding cat embedding: {nan_count}")
+        if nan_count > 0:
+            print("got", nan_count, "nans")
+            exit()
         
         # TODO properly add batches across GPUs
         
+        # TODO only add this if it seems like it improves performance, otherwise just unnecessary
         # x = self.decoder_input_proj(x)
-        nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values after decoder input proj: {nan_count}")
+        # nan_count = torch.isnan(x).sum().item()
+        # print(f"Number of NaN values after decoder input proj: {nan_count}")
         x = self.append_cls(x)
 
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values before block: {nan_count}")
+        print(f"Number of NaN values after appending cls: {nan_count}")
+        if nan_count > 0:
+            print("got", nan_count, "nans")
+            exit()
         x_np = x.squeeze(0).detach().numpy()
         # Save numpy array to a text file
         np.savetxt("tensor_data.txt", x_np, fmt="%s", delimiter=",")
+        
+        x = self.decoder_input_norm
+        nan_count = torch.isnan(x).sum().item()
+        print(f"Number of NaN values after input layernorm and before block: {nan_count}")
+        if nan_count > 0:
+            print("got", nan_count, "nans")
+            exit()
         
         depth = 0
         for blk in self.decoder_blocks:

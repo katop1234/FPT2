@@ -85,20 +85,8 @@ class ContinuousEmbeddingMLP(PrintableModule):
         for layer in self.layers:
             x = layer(x)
         return x
-    
-# simple linear projection from input_size to output_size
-# previous MLP embedder might be overkill
-class ContinuousEmbedding(nn.Module):  # Use nn.Module, PrintableModule seems to be not defined in the snippet
-    def __init__(self, input_size, output_size):
-        super().__init__()
-        
-        #self.norm = nn.LayerNorm(input_size)
-        self.linear = nn.Linear(input_size, output_size)
-    
-    def forward(self, x):
-        return self.linear(x)
 
-class TickerEmbedding(nn.Module):
+class TickerEmbedding(PrintableModule):
     def __init__(self, ticker_list, embed_dim):
         super().__init__()
         self.ticker_to_index = {ticker: torch.tensor(i, dtype=torch.long).to(device) for i, ticker in enumerate(ticker_list)}
@@ -125,24 +113,18 @@ class Time2VecEmbedding(PrintableModule): # It seems "PrintableModule" is custom
         self.linear_transform = nn.Linear(embed_dim, embed_dim)
         
     def forward(self, time):
-        # Applying sin(2πx) to the first half
-        sin_transform = torch.sin(2 * math.pi * time)
+        # Compute the first half and second half of the tensor directly using slicing
+        first_half = torch.sin(2 * math.pi * time[..., :self.embed_dim//2])
         
-        # Keeping the second half unchanged
-        unchanged = time[..., self.embed_dim//2:]
+        second_half = time[..., self.embed_dim//2:]
         
         # Concatenating both parts
-        combined = torch.cat((sin_transform[..., :self.embed_dim//2], unchanged), dim=-1)
+        combined = torch.cat((first_half, second_half), dim=-1)
 
         # Applying linear transformation
         embedding = self.linear_transform(combined)
 
         return embedding
-
-# Maps the output of the decoder back to the original value
-class ContinuousUnembedding(ContinuousEmbedding):
-    def forward(self, x):
-        return self.linear(x)
 
 class Attention(nn.Module):
     '''
