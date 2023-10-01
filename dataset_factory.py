@@ -33,7 +33,7 @@ class Ticker:
         for start, end in date_ranges:
             if self.counter - end < 0:
                 mask += [False] * num_base_categories
-                array = np.ones((num_base_categories, token_length)) #TODO change to zeros when done, 1 for debugging
+                array = np.random.randn(num_base_categories, token_length) # randn to avoid layernorm explosion
             else:
                 mask += [True] * num_base_categories
                 # print(self.raw_data.shape)
@@ -43,7 +43,6 @@ class Ticker:
                 # WARNING find a better way to feed in the raw price values without hardcoding out the time2vec parts
                 array = array.T
                 if array.shape[1] < token_length:
-                    # TODO is it ok to pad with 0s since those are within the range of values for returns?
                     padding = np.zeros((array.shape[0], token_length-array.shape[1]))
                     array = np.hstack((array, padding))
 
@@ -66,7 +65,13 @@ class Ticker:
 
 class FinancialDataset(Dataset):
     def __init__(self, df_path):
-        self.df = utils.read(df_path)
+        try:
+            self.df = utils.read(df_path)
+        except Exception as e:
+            print("Raised exception", e)
+            print("The dataset was not found. You can get it by running write_all_SNP500_data() from get_data.py")
+            exit()
+            
         self.ticker_names = self.df["Ticker"].unique().tolist()
         self.df = self.df.set_index(["Ticker"])
         # each ticker needs start date, num_rows, numpy array of input features, gt vector

@@ -142,7 +142,6 @@ class FPT(nn.Module):
                 print("got", num_nans, "nans")
                 exit()
 
-
         x = self.decoder_norm(x)
         cls_token = x[:, 0, :]
         return cls_token
@@ -158,8 +157,6 @@ class FPT(nn.Module):
         return loss
     
     def forward(self, x, attention_mask, gt):
-
-
         x_np = x.numpy()
         # Save numpy array to a text file
         np.savetxt("tensor_data.txt", x_np, fmt="%s", delimiter=",")

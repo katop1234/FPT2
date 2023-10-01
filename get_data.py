@@ -135,23 +135,23 @@ def write_all_SNP500_data():
         return group.reset_index() # Reset the index to keep 'Date' as a column
 
     df = df.groupby('Ticker', group_keys=False).apply(resample_ticker_group)
-    
+
     # Ensure that the 'Ticker' column is of string type
     df['Ticker'] = df['Ticker'].astype(str)
-    
+
     # fill in any missing weekday values
     num_nans_before = df.isna().sum().sum()
     df.fillna(method='ffill', inplace=True)
     df.fillna(method='bfill', inplace=True)
     print(f"Filled {num_nans_before} missing values with forward and backward fill.")
-    
-    df = df[df['Ticker'] != 0]
 
+    df = df[df['Ticker'] != 0]
+    
     # Normalize datetime columns
-    df["Year"] = (df["Year"] - 1900) / 150
-    df["Month"] = (df["Month"] - 1) / 12 
-    df["Day"] = (df["Day"] - 1) / 31
-    df["Weekday"] = df["Weekday"] / 5
+    df["Year"] = (df["Year"] - 1900) / 150 
+    df["Month"] = (df["Month"] - 1) / 12 # [1, 12]
+    df["Day"] = (df["Day"] - 1) / 31 # [1, 31]
+    df["Weekday"] = df["Weekday"] / 5 # [0, 4]
 
     write(df, "SNPdata.ser")
 
@@ -177,6 +177,5 @@ def write_single_ticker_data_yfinance():
             print(f"Could not fetch data for {ticker}. Reason: {e}")
             continue
 
-# write_all_SNP500_data()
+write_all_SNP500_data()
 #write_single_ticker_data_yfinance()
-
