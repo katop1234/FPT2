@@ -2,11 +2,12 @@ import os.path
 
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
 import yfinance as yf
 from utils import read, write
 from torch.utils.data import Dataset
-import torch
+import pandas as pd
+from tqdm import tqdm
+
 
 def get_SNP_list():
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
@@ -76,9 +77,6 @@ def calculate_gt(group):
     group.drop(columns=['shifted_price'], inplace=True)
     return group
 
-import pandas as pd
-from tqdm import tqdm
-
 def normalize_column(df):
     '''
     Use this to normalize specified columns within each ticker group.
@@ -87,33 +85,13 @@ def normalize_column(df):
     
     def normalize(group):
         # Compute the relative change for specified columns
-        group[normalizing_cols] = group[normalizing_cols].pct_change().fillna(0)
-        return group
+        return group[normalizing_cols].pct_change().fillna(0)
 
-    # Wrap the groupby object with tqdm for progress bar
-    tqdm.pandas()
-    return df.groupby('Ticker').progress_apply(normalize)
-
-def normalize_column(df):
-    '''
-    Use this to normalize specified columns within each ticker group.
-    '''
-    normalizing_cols = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+    # Use transform to apply the normalization across all groups
+    df[normalizing_cols] = df.groupby('Ticker')[normalizing_cols].transform(normalize)
     
-    def normalize(group):
-        # Compute the relative change for specified columns
-        group[normalizing_cols] = group[normalizing_cols].pct_change().fillna(0)
-        return group
+    return df
 
-    # List to collect processed DataFrames for each ticker
-    processed_data = []
-
-    # Iterate over each ticker, apply the normalize function, and collect the result
-    for ticker, group in tqdm(df.groupby('Ticker'), desc="Processing tickers"):
-        processed_data.append(normalize(group))
-
-    # Combine the processed data together
-    return pd.concat(processed_data)
 
 def write_all_SNP500_data():
     '''
@@ -150,6 +128,9 @@ def write_all_SNP500_data():
 
     df = df[df['Ticker'] != 0]
     print("Removed bad tickers, about to normalize time2vec columns")
+    
+    df = normalize_column(df)
+    print('Normalized df float columns!')
     
     # Normalize datetime columns
     df["Year"] = (df["Year"] - 1900) / 150 
