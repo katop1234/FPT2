@@ -120,12 +120,14 @@ def write_all_SNP500_data():
     Writes all SNP500 data to a file
     '''
     df = get_all_SNP500_data()
+    print("Got all SNP 500 data!")
     
     # Apply the calculate_gt function to each ticker group
     df = df.groupby('Ticker').apply(calculate_gt).reset_index(drop=True)
     
     # Convert 'Date' to datetime if it's not already
     df['Date'] = pd.to_datetime(df['Date'])
+    print("Converted Date column to pd datetime")
     
     # Resample to include all weekdays and interpolate missing values
     def resample_ticker_group(group):
@@ -138,6 +140,7 @@ def write_all_SNP500_data():
 
     # Ensure that the 'Ticker' column is of string type
     df['Ticker'] = df['Ticker'].astype(str)
+    print("Prepared ticker column")
 
     # fill in any missing weekday values
     num_nans_before = df.isna().sum().sum()
@@ -146,14 +149,17 @@ def write_all_SNP500_data():
     print(f"Filled {num_nans_before} missing values with forward and backward fill.")
 
     df = df[df['Ticker'] != 0]
+    print("Removed bad tickers, about to normalize time2vec columns")
     
     # Normalize datetime columns
     df["Year"] = (df["Year"] - 1900) / 150 
     df["Month"] = (df["Month"] - 1) / 12 # [1, 12]
     df["Day"] = (df["Day"] - 1) / 31 # [1, 31]
     df["Weekday"] = df["Weekday"] / 5 # [0, 4]
+    print("Normalized time2vec columns, now writing df")
 
     write(df, "SNPdata.ser")
+    print("Wrote df!")
 
 
 '''
