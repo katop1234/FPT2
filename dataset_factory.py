@@ -6,7 +6,6 @@ from torch.utils.data import Dataset
 import constants
 
 # TODO do proper batching
-
 device = constants.device
 
 date_ranges = utils.get_date_ranges()
