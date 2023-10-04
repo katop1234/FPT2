@@ -229,8 +229,8 @@ class TransformerBlock(nn.Module):
         self.attention = Attention(dim, heads)
         self.feed_forward = FeedForward(dim)
 
-    def forward(self, x, context=None, attention_mask=None):
-        x = self.attention(x, context, attention_mask) + x
+    def forward(self, x, attention_mask=None, context=None):
+        x = self.attention(x, attention_mask, context) + x
         # print("x after cross attn", x, torch.min(x), torch.max(x))
         nan_count = torch.isnan(x).sum().item()
         # print(f"Number of NaN values: {nan_count}")
@@ -248,8 +248,8 @@ class CheckpointedTransformerBlock(nn.Module):
         self.cross_attention = Attention(dim, heads)
         self.feed_forward = FeedForward(dim)
 
-    def forward(self, x, context=None):
-        x = checkpoint(self.cross_attention, x, context) + x
+    def forward(self, x, attention_mask=None, context=None):
+        x = checkpoint(self.cross_attention, x, attention_mask, context) + x
         x = checkpoint(self.feed_forward, x) + x
 
         return x
