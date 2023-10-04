@@ -34,9 +34,9 @@ class FPT(nn.Module):
         self.input_linear_projection = nn.Linear(embed_dim, embed_dim)
         
         ## Get categorical embeddings and mask tokens to add to input embedding
-        self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim)).to(device) * 0.02 # remove 1 for cls
+        self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim) * 0.02).to(device) # remove 1 for cls
         
-        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)).to(device) * 0.02
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim) * 0.02).to(device)
         
         self.decoder_blocks = nn.ModuleList(
             [
