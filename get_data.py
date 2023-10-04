@@ -87,6 +87,8 @@ def normalize_column(df):
         return group.pct_change().fillna(0)
 
     # Apply normalization directly to the specified columns
+    # TODO fix this to be more efficient! Run through the whole data preprocessing pipeline once
+    # and see if it works
     for col in normalizing_cols:
         df[col] = df.groupby('Ticker')[col].transform(normalize)
     
@@ -132,6 +134,7 @@ def write_all_SNP500_data():
     print('Normalized df float columns!')
     
     # Normalize datetime columns
+    # TODO just apply sine here. Do sine(x + 1e-5) to avoid any 0s
     df["Year"] = (df["Year"] - 1900) / 150 
     df["Month"] = (df["Month"] - 1) / 12 # [1, 12]
     df["Day"] = (df["Day"] - 1) / 31 # [1, 31]
