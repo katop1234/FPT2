@@ -162,30 +162,30 @@ class Attention(nn.Module):
         h = self.heads
         x = self.norm(x)
 
-        print('x after norm', (torch.isnan(x).sum().item()), x)
+        # print('x after norm', (torch.isnan(x).sum().item()), x)
 
         context = x if context is None else context
 
         qkv = (self.to_q(x), self.to_k(context), self.to_v(context))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
 
-        print('q', (torch.isnan(q).sum().item()), q)
-        print('k', (torch.isnan(k).sum().item()), k)
-        print('v', (torch.isnan(v).sum().item()), v)
+        # print('q', (torch.isnan(q).sum().item()), q)
+        # print('k', (torch.isnan(k).sum().item()), k)
+        # print('v', (torch.isnan(v).sum().item()), v)
 
         q, k = self.q_norm(q), self.k_norm(k) # Vit22B paper
 
-        print('q after norm', (torch.isnan(q).sum().item()), q)
-        print('k after norm', (torch.isnan(k).sum().item()), k)
+        # print('q after norm', (torch.isnan(q).sum().item()), q)
+        # print('k after norm', (torch.isnan(k).sum().item()), k)
 
-        print("min of q", torch.min(q), "max of q", torch.max(q))
-        print("min of k", torch.min(k), "max of k", torch.max(k))
+        # print("min of q", torch.min(q), "max of q", torch.max(q))
+        # print("min of k", torch.min(k), "max of k", torch.max(k))
         
         q = q * self.scale
 
         sim = torch.einsum('b h i d, b h j d -> b h i j', q, k)
 
-        print("sim", (torch.isnan(sim).sum().item()), sim)
+        # print("sim", (torch.isnan(sim).sum().item()), sim)
 
         if attention_mask is not None:
             attention_mask = attention_mask.unsqueeze(0)  # Add batch dimension
@@ -194,15 +194,15 @@ class Attention(nn.Module):
 
             sim.masked_fill_(~attention_mask, float('-inf'))
 
-        print("min of sim", torch.min(sim), "max of sim", torch.max(sim))
+        # print("min of sim", torch.min(sim), "max of sim", torch.max(sim))
 
         attn = sim.softmax(dim = -1)
 
-        print("attn", (torch.isnan(attn).sum().item()), attn)
+        # print("attn", (torch.isnan(attn).sum().item()), attn)
 
         out = torch.einsum('b h i j, b h j d -> b h i d', attn, v)
 
-        print("out", (torch.isnan(out).sum().item()), out)
+        # print("out", (torch.isnan(out).sum().item()), out)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
@@ -231,13 +231,13 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x, context=None, attention_mask=None):
         x = self.attention(x, context, attention_mask) + x
-        print("x after cross attn", x, torch.min(x), torch.max(x))
+        # print("x after cross attn", x, torch.min(x), torch.max(x))
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values: {nan_count}")
+        # print(f"Number of NaN values: {nan_count}")
         x = self.feed_forward(x) + x
-        print("x after ff", x, torch.min(x), torch.max(x))
+        # print("x after ff", x, torch.min(x), torch.max(x))
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values: {nan_count}")
+        # print(f"Number of NaN values: {nan_count}")
 
         return x
 

@@ -3,6 +3,9 @@ import pandas as pd
 import torch
 import utils
 from torch.utils.data import Dataset
+import constants
+
+device = constants.device
 
 date_ranges = utils.get_date_ranges()
 base_categories = utils.base_categories()
@@ -47,15 +50,12 @@ class Ticker:
                     array = np.hstack((array, padding))
 
             X = np.vstack((X, array))
-            print("shape of X", X.shape, "for start end", start, end)
 
         for time2vec_idx in range(len(time2vec_categories)):
             time2vec_token = np.ones(token_length) * self.raw_data[self.counter, -len(time2vec_categories) + time2vec_idx]
             X = np.vstack((X, time2vec_token))
             mask += [True]
-            print("shape of X", X.shape, "for start end", start, end)
         
-        print("end X", X)
         np.savetxt("array_data.txt", X, fmt="%s", delimiter=",")
         
         y = self.gt[self.counter]
@@ -125,15 +125,23 @@ class FinancialDataset(Dataset):
             chosen_ticker = self.pop_stack_and_move_to_back()
             Ticker_generator = self.ticker_generator_lookup[chosen_ticker]
             sample, mask, y = Ticker_generator.gen_function()
+
+            # Check for NaN or Inf values in the sample and y
+            if (np.isnan(sample).any() or np.isinf(sample).any() or 
+                np.isnan(y).any() or np.isinf(y).any()):
+                print(f"Warning: Detected NaN or Inf values in data for ticker: {chosen_ticker}. Skipping to the next sample." * 10)
+                sample = None  # Set sample to None to continue the loop and skip to the next sample
+                continue  
+            
             if sample is None:
                 # done with that ticker
                 self.stack = self.stack[:-1]
             else:
-                x = torch.from_numpy(sample).float()
+                x = torch.from_numpy(sample).float().to(device)
                 
                 mask = [True] + mask # for CLS
-                mask = torch.tensor(mask, dtype=torch.bool)
+                mask = torch.tensor(mask, dtype=torch.bool).to(device)
                 
-                y = torch.tensor(y, requires_grad=True).unsqueeze(0).unsqueeze(0)
+                y = torch.tensor(y, requires_grad=True).unsqueeze(0).unsqueeze(0).to(device)
                 
                 return x, mask, y # TODO convert to torch during init and figure out how to feed in mask

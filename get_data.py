@@ -87,7 +87,8 @@ def normalize_column(df):
         return group.pct_change().fillna(0)
 
     # Apply normalization directly to the specified columns
-    df[normalizing_cols] = df.groupby('Ticker')[normalizing_cols].transform(normalize)
+    for col in normalizing_cols:
+        df[col] = df.groupby('Ticker')[col].transform(normalize)
     
     return df
 

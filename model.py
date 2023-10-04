@@ -35,7 +35,7 @@ class FPT(nn.Module):
         self.time2vec_embedding = Time2VecEmbedding(embed_dim)
         
         ## Get categorical embeddings and mask tokens to add to input embedding
-        self.categorical_embeddings = torch.randn(self.seq_len - 1, self.embed_dim) * 0.02 # remove 1 for cls
+        self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim)).to(device) * 0.02 # remove 1 for cls
         
         self.decoder_input_norm = nn.LayerNorm(self.embed_dim)
         
@@ -77,11 +77,14 @@ class FPT(nn.Module):
         return tensor
     
     def forward_decoder(self, x, attention_mask=None):
+        
+        x_np = x.cpu().squeeze(0).detach().numpy()
+        np.savetxt("input_x.txt", x_np, fmt="%s", delimiter=",")
 
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values in input: {nan_count}")
+        
         if nan_count > 0:
-            print("got", nan_count, "nans")
+            print(f"Number of NaN values in input: {nan_count}")
             exit()
         
         x = self.pad_x_for_embed_dim(x)
@@ -97,20 +100,30 @@ class FPT(nn.Module):
         time_embed = self.time2vec_embedding(time_tokens)
 
         # Concatenate embeddings
+        
+        x_np = x.cpu().squeeze(0).detach().numpy()
+        np.savetxt("x_before_embed.txt", x_np, fmt="%s", delimiter=",")
+        
         x = torch.cat([continuous_embed, time_embed], dim=1)
         
+        x_np = x.cpu().squeeze(0).detach().numpy()
+        np.savetxt("x_after_embed.txt", x_np, fmt="%s", delimiter=",")
+        
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values after embedding: {nan_count}")
+        
         if nan_count > 0:
-            print("got", nan_count, "nans")
+            print(f"Number of NaN values after embedding: {nan_count}")
             exit()
 
         x += self.categorical_embeddings
+        
+        x_np = x.cpu().squeeze(0).detach().numpy()
+        np.savetxt("x_after_add_cat_emb.txt", x_np, fmt="%s", delimiter=",")
 
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values after adding cat embedding: {nan_count}")
+        
         if nan_count > 0:
-            print("got", nan_count, "nans")
+            print(f"Number of NaN values after adding cat embedding: {nan_count}")
             exit()
         
         # TODO properly add batches across GPUs
@@ -118,18 +131,22 @@ class FPT(nn.Module):
         x = self.append_cls(x)
 
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values after appending cls: {nan_count}")
+        
         if nan_count > 0:
-            print("got", nan_count, "nans")
+            print(f"Number of NaN values after appending cls: {nan_count}")
             exit()
-        x_np = x.squeeze(0).detach().numpy()
-        # Save numpy array to a text file
+            
+        x_np = x.cpu().squeeze(0).detach().numpy()
+        np.savetxt("x_before_input_norm.txt", x_np, fmt="%s", delimiter=",")
         
         x = self.decoder_input_norm(x)
+        
+        x_np = x.cpu().squeeze(0).detach().numpy()
+        np.savetxt("x_after_input_norm.txt", x_np, fmt="%s", delimiter=",")
         nan_count = torch.isnan(x).sum().item()
-        print(f"Number of NaN values after input layernorm and before block: {nan_count}")
+        
         if nan_count > 0:
-            print("got", nan_count, "nans")
+            print(f"Number of NaN values after input layernorm and before block: {nan_count}")
             exit()
         
         np.savetxt("transformer_input_tensor_data.txt", x_np, fmt="%s", delimiter=",")
@@ -138,32 +155,22 @@ class FPT(nn.Module):
         for blk in self.decoder_blocks:
             x = blk(x, attention_mask)
             depth += 1
-            print("cls token at depth", depth, x[:, 0, :])
 
             num_nans =  (torch.isnan(x).sum().item())
             if num_nans > 0:
-                print("got", num_nans, "nans")
+                print("got", num_nans, "nans after transforemr block", depth)
                 exit()
 
-        x = self.decoder_norm(x)
+        x = self.decoder_output_norm(x)
         cls_token = x[:, 0, :]
         return cls_token
     
     def forward_loss(self, cls_token, gt):
         pred = self.predictor(cls_token)
-        
-        print("types", type(gt), type(pred))
-        print("actuals", gt, pred)
-        print("shapes", gt.shape, pred.shape)
-        
         loss = utils.mean_squared_error(gt, pred)
         return loss
     
     def forward(self, x, attention_mask, gt):
-        x_np = x.numpy()
-        # Save numpy array to a text file
-        np.savetxt("tensor_data.txt", x_np, fmt="%s", delimiter=",")
-
         # TODO also change the Time2Vec embedding class to never worry abt modulus other than 1
 
         # TODO for datetime vectors, just copy the value over repeatedly, don't give it a bunch of 0s
@@ -172,5 +179,6 @@ class FPT(nn.Module):
 
         cls_token = self.forward_decoder(x, attention_mask)
         loss = self.forward_loss(cls_token, gt)
+        print("Finished a forward pass and got a loss of", loss.item())
         return loss
         

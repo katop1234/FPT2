@@ -2,7 +2,7 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.multiprocessing as mp
-import utils
+import constants
 import os
 from model import FPT
 from engine_pretrain import train_one_epoch
@@ -14,7 +14,7 @@ total_batch_size = 1024
 batch_size_per_gpu = 64
 lr = 1.6e-3
 embed_dim = 256
-depth = 3
+depth = 12
 
 # Variables
 num_gpus = torch.cuda.device_count()
@@ -38,8 +38,17 @@ def main_worker(gpu, ngpus_per_node):
                  batch_size=batch_size_per_gpu,
                 )
     
+    # Calculate the total number of parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"The model has {total_params:,} parameters.")
+    
+    # Calculate the total number of trainable parameters
+    total_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"The model has {total_trainable_params:,} trainable parameters.")
+
     if num_gpus > 0:
-        model = model.cuda(gpu)
+        model = model.cuda()
+        print("Moved model to the gpu!")
 
     if num_gpus > 1:
         model = DDP(model, device_ids=[gpu])

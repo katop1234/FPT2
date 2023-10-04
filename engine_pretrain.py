@@ -1,5 +1,6 @@
-import torch
+
 from torch import inf
+import constants
 
 def train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     epoch_loss = 0.
@@ -21,5 +22,3 @@ def train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     optimizer.step()
 
     return model, epoch_loss
-
-
