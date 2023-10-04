@@ -126,6 +126,9 @@ class Time2VecEmbedding(PrintableModule): # It seems "PrintableModule" is custom
 
         return embedding
 
+# TODO try ideas from mistral
+# like gating mechanism in ff
+# https://github.com/mistralai/mistral-src/blob/main/mistral/model.py
 class Attention(nn.Module):
     '''
     Cross or Self Attention
