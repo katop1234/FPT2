@@ -51,6 +51,8 @@ class FPT(nn.Module):
         
         self.predictor = nn.Linear(self.embed_dim, 1)
 
+        # TODO i'm interested in seeing if a identity + randn() init works better for linear projections
+        # try ablation on that too over a 0-mean one
         def initialize_weights(module):
             if isinstance(module, (nn.Linear)):
                 module.weight.data.normal_(mean=0, std=0.02)
