@@ -110,7 +110,6 @@ class Time2VecEmbedding(PrintableModule): # It seems "PrintableModule" is custom
     def __init__(self, embed_dim):
         super(Time2VecEmbedding, self).__init__() # Modified super() for clarity
         self.embed_dim = embed_dim
-        self.linear_transform = nn.Linear(embed_dim, embed_dim)
         
     def forward(self, time):
         # Compute the first half and second half of the tensor directly using slicing
@@ -121,10 +120,7 @@ class Time2VecEmbedding(PrintableModule): # It seems "PrintableModule" is custom
         # Concatenating both parts
         combined = torch.cat((first_half, second_half), dim=-1)
 
-        # Applying linear transformation
-        embedding = self.linear_transform(combined)
-
-        return embedding
+        return combined
 
 # TODO try ideas from mistral
 # like swiglu activation (used in llama also)

@@ -31,17 +31,14 @@ class FPT(nn.Module):
         self.ticker_list = utils.get_ticker_list()
 
         ## Embed raw tokens
-        self.continuous_embedding = nn.Linear(embed_dim, embed_dim)
-        self.time2vec_embedding = Time2VecEmbedding(embed_dim)
+        self.sined_time_feats = Time2VecEmbedding(embed_dim)
+        
+        self.input_linear_projection = nn.Linear(embed_dim, embed_dim)
         
         ## Get categorical embeddings and mask tokens to add to input embedding
         self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim)).to(device) * 0.02 # remove 1 for cls
         
-        self.decoder_input_norm = nn.LayerNorm(self.embed_dim)
-        
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim)).to(device) * 0.02
-        
-        self.decoder_output_norm = nn.LayerNorm(self.embed_dim)
         
         self.decoder_blocks = nn.ModuleList(
             [
@@ -87,33 +84,20 @@ class FPT(nn.Module):
             print(f"Number of NaN values in input: {nan_count}")
             exit()
         
+        # TODO replace this with continuous embedding such that it 
+        # just is Linear(input_dim, embed_dim)
         x = self.pad_x_for_embed_dim(x)
         x = x.unsqueeze(0)
 
         # Split the tensor based on your token types
         # TODO change hardcoding on this!
-        continuous_tokens = x[:, :-4, :]
+        non_time_tokens = x[:, :-4, :]
         time_tokens = x[:, -4:, :]
-
-        # Embed continuous and time tokens
-        continuous_embed = self.continuous_embedding(continuous_tokens)
-        time_embed = self.time2vec_embedding(time_tokens)
-
-        # Concatenate embeddings
+        sined_time_tokens = self.sined_time_feats(time_tokens)
+        x = torch.cat([non_time_tokens, sined_time_tokens], dim=1)
         
-        x_np = x.cpu().squeeze(0).detach().numpy()
-        np.savetxt("x_before_embed.txt", x_np, fmt="%s", delimiter=",")
-        
-        x = torch.cat([continuous_embed, time_embed], dim=1)
-        
-        x_np = x.cpu().squeeze(0).detach().numpy()
-        np.savetxt("x_after_embed.txt", x_np, fmt="%s", delimiter=",")
-        
-        nan_count = torch.isnan(x).sum().item()
-        
-        if nan_count > 0:
-            print(f"Number of NaN values after embedding: {nan_count}")
-            exit()
+        # TODO try without these and see if it even matters!
+        x = self.input_linear_projection(x)
 
         x += self.categorical_embeddings
         
@@ -135,19 +119,6 @@ class FPT(nn.Module):
         if nan_count > 0:
             print(f"Number of NaN values after appending cls: {nan_count}")
             exit()
-            
-        x_np = x.cpu().squeeze(0).detach().numpy()
-        np.savetxt("x_before_input_norm.txt", x_np, fmt="%s", delimiter=",")
-        
-        x = self.decoder_input_norm(x)
-        
-        x_np = x.cpu().squeeze(0).detach().numpy()
-        np.savetxt("x_after_input_norm.txt", x_np, fmt="%s", delimiter=",")
-        nan_count = torch.isnan(x).sum().item()
-        
-        if nan_count > 0:
-            print(f"Number of NaN values after input layernorm and before block: {nan_count}")
-            exit()
         
         np.savetxt("transformer_input_tensor_data.txt", x_np, fmt="%s", delimiter=",")
         
@@ -161,7 +132,6 @@ class FPT(nn.Module):
                 print("got", num_nans, "nans after transforemr block", depth)
                 exit()
 
-        x = self.decoder_output_norm(x)
         cls_token = x[:, 0, :]
         return cls_token
     
