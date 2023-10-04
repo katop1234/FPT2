@@ -35,7 +35,6 @@ def main_worker(gpu, ngpus_per_node):
 
     model = FPT(embed_dim=embed_dim,
                  depth=depth,
-                 batch_size=batch_size_per_gpu,
                 )
     
     # Calculate the total number of parameters
