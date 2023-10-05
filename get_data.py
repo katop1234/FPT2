@@ -23,20 +23,17 @@ def get_single_ticker_data_yfinance(ticker):
     Returns a dataframe of a single ticker's available data
     Columns are: Open, High, Low, Close, Adj Close, Volume, Ticker, Year, Month, Day
     '''
+    start_date, end_date = '1970-01-01', '2020-01-01'
+
     # set the start date to the earliest possible date
-    data = yf.download(ticker, start='1970-01-01', end='2020-01-01')
+    data = yf.download(ticker, start=start_date, end=end_date)
     
     # Ensure that the dates are within the expected range
-    if not data.empty and ((data.index < pd.Timestamp('1970-01-01')) | (data.index > pd.Timestamp('2022-01-01'))).any():
+    if not data.empty and ((data.index < pd.Timestamp(start_date)) | (data.index > pd.Timestamp(end_date))).any():
         raise ValueError(f"Data for {ticker} contains dates outside the expected range.")
     
     data['Ticker'] = ticker
     data.reset_index(inplace=True)
-    
-    data['Year'] = data['Date'].dt.year
-    data['Month'] = data['Date'].dt.month
-    data['Day'] = data['Date'].dt.day
-    data['Weekday'] = data['Date'].dt.dayofweek % 7
     
     data['TypicalPrice'] = data[['High', 'Low', 'Close']].mean(axis=1)
 
@@ -63,47 +60,42 @@ def get_all_SNP500_data():
 
     return all_data
 
-def calculate_gt(group):
+def percent_diff(group, col_name):
     '''
     Use this to get the gt column
     Apply function to each ticker group
     '''
-    group['shifted_price'] = group['TypicalPrice'].shift(1)
-    group['gt'] = (group['TypicalPrice'] - group['shifted_price']) / group['shifted_price']
-    
-    # Set the first value of gt for each group to 0
-    group['gt'].iloc[0] = 0
+    group['shifted_col'] = group[col_name].shift(1)
+    group['shifted_col'].iloc[0] = 1 # dummy value, we drop the first row anyway
 
-    group.drop(columns=['shifted_price'], inplace=True)
+    num_nans = group['shifted_col'].isna().sum()
+    if num_nans > 0:
+        print("WARNING got {num_nans} nans in column", col_name, "for ticker", group.index)
+
+    group[col_name] = (group[col_name] - group['shifted_col']) / group['shifted_col']
+
+    group[col_name].fillna(0, inplace=True)
+    
+    group.drop(columns=['shifted_col'], inplace=True)
+
+    group.drop(group.index[0], inplace=True) # drop first row
+
     return group
-
-def normalize_column(df):
-    '''
-    Use this to normalize specified columns within each ticker group.
-    '''
-    normalizing_cols = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
-
-    def normalize(group):
-        return group.pct_change().fillna(0)
-
-    # Apply normalization directly to the specified columns
-    # TODO fix this to be more efficient! Run through the whole data preprocessing pipeline once
-    # and see if it works
-    for col in normalizing_cols:
-        df[col] = df.groupby('Ticker')[col].transform(normalize)
-    
-    return df
 
 def write_all_SNP500_data():
     '''
     Writes all SNP500 data to a file
     '''
     df = get_all_SNP500_data()
+
     print("Got all SNP 500 data!")
-    
+    list_of_cols_to_normalize = ["Open", "High", "Low", "Close", "Adj Close", "Volume", "TypicalPrice"]
+
     # Apply the calculate_gt function to each ticker group
-    df = df.groupby('Ticker').apply(calculate_gt).reset_index(drop=True)
+    for col in list_of_cols_to_normalize:
+        df = df.groupby('Ticker').apply(lambda group: percent_diff(group, col)).reset_index(drop=True)
     
+    df.rename(columns={'TypicalPrice': 'gt'}, inplace=True)
     # Convert 'Date' to datetime if it's not already
     df['Date'] = pd.to_datetime(df['Date'])
     print("Converted Date column to pd datetime")
@@ -111,39 +103,26 @@ def write_all_SNP500_data():
     # Resample to include all weekdays and interpolate missing values
     def resample_ticker_group(group):
         group = group.set_index('Date')
+        ticker_value = group['Ticker'].iloc[0] 
         group = group.resample('B').asfreq()
-        group.interpolate(method='linear', inplace=True)
+        group.interpolate(method='linear', axis=0, inplace=True)
+        group['Ticker'].fillna(ticker_value, inplace=True)
         return group.reset_index() # Reset the index to keep 'Date' as a column
 
     df = df.groupby('Ticker', group_keys=False).apply(resample_ticker_group)
-
-    # Ensure that the 'Ticker' column is of string type
-    df['Ticker'] = df['Ticker'].astype(str)
-    print("Prepared ticker column")
-
-    # fill in any missing weekday values
-    num_nans_before = df.isna().sum().sum()
-    df.fillna(method='ffill', inplace=True)
-    df.fillna(method='bfill', inplace=True)
-    print(f"Filled {num_nans_before} missing values with forward and backward fill.")
-
-    df = df[df['Ticker'] != 0]
-    print("Removed bad tickers, about to normalize time2vec columns")
     
-    df = normalize_column(df)
-    print('Normalized df float columns!')
-    
-    # Normalize datetime columns
-    # TODO just apply sine here. Do sine(x + 1e-5) to avoid any 0s
+    df['Year'] = df['Date'].dt.year
+    df['Month'] = df['Date'].dt.month
+    df['Day'] = df['Date'].dt.day
+    df['Weekday'] = df['Date'].dt.dayofweek % 7
+
     df["Year"] = (df["Year"] - 1900) / 150 
     df["Month"] = (df["Month"] - 1) / 12 # [1, 12]
     df["Day"] = (df["Day"] - 1) / 31 # [1, 31]
     df["Weekday"] = df["Weekday"] / 5 # [0, 4]
-    print("Normalized time2vec columns, now writing df")
 
     write(df, "SNPdata.ser")
     print("Wrote df!")
-
 
 '''
 DATA PREPROCESSING:
@@ -166,5 +145,4 @@ def write_single_ticker_data_yfinance():
             print(f"Could not fetch data for {ticker}. Reason: {e}")
             continue
 
-write_all_SNP500_data()
-#write_single_ticker_data_yfinance()
+# write_all_SNP500_data()

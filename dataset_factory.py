@@ -97,7 +97,7 @@ class FinancialDataset(Dataset):
         end_date = ticker_df["Date"].iloc[-1]
         num_rows = len(ticker_df)
         ticker_df = ticker_df.reset_index()
-        ticker_df = ticker_df.drop(columns=["Date", "TypicalPrice", "Ticker"])
+        ticker_df = ticker_df.drop(columns=["Date", "Ticker"])
         np_array = ticker_df.to_numpy()
         gt_vector, raw_data = np_array[:, -1], np_array[:, :-1]
 
