@@ -10,9 +10,9 @@ from dataset_factory import FinancialDataset
 
 # Hyperparameters
 num_epochs = 1000
-total_batch_size = 1024
-batch_size_per_gpu = 64
-lr = 1.6e-3
+total_batch_size = 256
+batch_size_per_gpu = 1
+lr = 1e-5
 embed_dim = 256
 depth = 12
 
@@ -63,6 +63,7 @@ def main_worker(gpu, ngpus_per_node):
 
     dataset = FinancialDataset("SNPdata.ser")
 
+    print("Using batch size per gpu", batch_size_per_gpu, "accum iter", accum_iter)
     for epoch in range(num_epochs):
         train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
 

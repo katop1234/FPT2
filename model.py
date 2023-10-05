@@ -149,6 +149,6 @@ class FPT(nn.Module):
 
         cls_token = self.forward_decoder(x, attention_mask)
         loss = self.forward_loss(cls_token, gt)
-        print("Finished a forward pass and got a loss of", loss.item())
+        # print("Finished a forward pass and got a loss of", loss.item())
         return loss
         

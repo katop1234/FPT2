@@ -128,16 +128,18 @@ class FinancialDataset(Dataset):
             sample, mask, y = Ticker_generator.gen_function()
 
             # Check for NaN or Inf values in the sample and y
-            if (np.isnan(sample).any() or np.isinf(sample).any() or 
-                np.isnan(y).any() or np.isinf(y).any()):
-                print(f"Warning: Detected NaN or Inf values in data for ticker: {chosen_ticker}. Skipping to the next sample." * 10)
-                sample = None  # Set sample to None to continue the loop and skip to the next sample
-                continue  
-            
+
             if sample is None:
                 # done with that ticker
                 self.stack = self.stack[:-1]
             else:
+
+                if (np.isnan(sample).any() or np.isinf(sample).any() or 
+                    np.isnan(y).any() or np.isinf(y).any()):
+                    print(f"Warning: Detected NaN or Inf values in data for ticker: {chosen_ticker}. Skipping to the next sample." * 10)
+                    sample = None  # Set sample to None to continue the loop and skip to the next sample
+                    continue  
+
                 x = torch.from_numpy(sample).float().to(device)
                 
                 mask = [True] + mask # for CLS
