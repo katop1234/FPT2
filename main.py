@@ -42,9 +42,12 @@ def main_worker(gpu, ngpus_per_node):
                 )
     
     # Ensure the directory exists
-    checkpoint_folder = "./serialized/checkpoints/"
-    if not os.path.exists(checkpoint_folder):
-        os.makedirs(checkpoint_folder)
+    config_folder = f"batch_{total_batch_size}_lr_{lr}_input_{input_dim}_embed_{embed_dim}_depth_{depth}"
+    checkpoint_dir = os.path.join("./serialized/checkpoints/", config_folder)
+
+    # Ensure the directory exists
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     
     # Calculate the total number of parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -78,9 +81,9 @@ def main_worker(gpu, ngpus_per_node):
         train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
         
         if step % checkpt_freq == 0:
-            # Construct the filename
-            filename = f"model_step_{step}_batch_{total_batch_size}_lr_{lr}_input_{input_dim}_embed_{embed_dim}_depth_{depth}.pt"
-            filepath = os.path.join(checkpoint_folder, filename)
+            # Construct the filename with just the step count
+            filename = f"model_step_{step}.pt"
+            filepath = os.path.join(checkpoint_dir, filename)
             
             # Save the model
             torch.save(model.state_dict(), filepath)
