@@ -34,6 +34,7 @@ def main_worker(gpu, ngpus_per_node):
         torch.cuda.set_device(gpu)
         torch.distributed.init_process_group(backend='nccl')
 
+    # TODO add weight decay and dropout later
     model = FPT(embed_dim=embed_dim,
                 depth=depth,
                 input_dim=input_dim,

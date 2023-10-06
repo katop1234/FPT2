@@ -26,7 +26,7 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
             
             losses_list.append(loss.item())
             
-            print("On sample", i*batch_size_per_gpu + j)
+            # print("On sample", i*batch_size_per_gpu + j)
 
         # call backward for the entire mini-batch
         mini_batch_loss = mini_batch_loss / (batch_size_per_gpu * accum_iter)
@@ -38,11 +38,10 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     # update the parameters after all gradients have been accumulated for the entire step
     optimizer.step()
     
-    print("Mean std of losses list", np.mean(losses_list), np.std(losses_list))
-
     total_loss_for_step /= (batch_size_per_gpu * accum_iter)
     print("Total loss for the step:", total_loss_for_step)
+    std_dev = np.std(losses_list)
     with open("losses.txt", "a") as f:
-        f.write(f"Loss: {total_loss_for_step}\n")
+        f.write(f"Loss: {total_loss_for_step}, Std Dev: {std_dev}\n")
 
     return model, total_loss_for_step
