@@ -43,7 +43,10 @@ class FPT(nn.Module):
         # base_embedding init is randn(0.02), let cat_specific_embedding init be randn(0.005)
         # This is so categories that don't get seen that much start off around this base vector and the
         # random noise doesn't overwrite the input's information that much
-        self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim) * 0.02).to(device) # remove 1 for cls
+        self.base_categorical_embedding = nn.Parameter(torch.randn(1, self.embed_dim).repeat(self.seq_len - 1, 1) * 0.02).to(device)
+        
+        self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim) * 0.005).to(device) # remove 1 for cls
+        self.categorical_embeddings += self.base_categorical_embedding
         
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim) * 0.02).to(device)
         
