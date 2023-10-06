@@ -131,7 +131,7 @@ class FPT(nn.Module):
             # Compute cosine similarity
             if self.counter % self.print_freq == 0:
                 cos_sim = F.cosine_similarity(input_tensor.flatten(), x.flatten(), dim=0)
-                print(f"Cosine Similarity at depth {depth}: {cos_sim.item()}")
+                print(f"Cosine Similarity at depth {depth}: {cos_sim.item()}", "Samples seen so far:", self.counter)
             
             depth += 1
 
