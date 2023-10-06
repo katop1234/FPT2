@@ -13,11 +13,12 @@ class FPT(nn.Module):
     def __init__(self,
                  embed_dim=256,
                  depth=32,
-                 input_dim=None,
+                 input_dim=256,
                  ):
         super().__init__()
         self.embed_dim = embed_dim
         self.depth = depth
+        self.input_dim = input_dim
         
         self.categories_lookup = dict()
         self.categories_lookup["floats"] = utils.get_floats_categories()
