@@ -66,7 +66,7 @@ class FPT(nn.Module):
         
         # For debugging
         self.counter = 0
-        self.print_freq = 512
+        self.print_freq = 256
     
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)

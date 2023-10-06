@@ -222,7 +222,7 @@ class FeedForward(nn.Module):
         x = self.norm(x)
         return self.net(x)
 
-class TransformerBlock(PrintableModule):
+class TransformerBlock(nn.Module):
     def __init__(self, dim, heads=16):
         super().__init__()
 
@@ -230,6 +230,8 @@ class TransformerBlock(PrintableModule):
         self.feed_forward = FeedForward(dim)
 
     def forward(self, x, attention_mask=None, context=None):
+        # TODO try putting "gating" parameters here 
+        # i.e. x = p1*blk(x) + p2*x, where p1, p2 are init to 1
         x = self.attention(x, attention_mask, context) + x
         # print("x after cross attn", x, torch.min(x), torch.max(x))
         nan_count = torch.isnan(x).sum().item()
