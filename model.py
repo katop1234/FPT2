@@ -37,6 +37,12 @@ class FPT(nn.Module):
         self.input_linear_projection = nn.Linear(input_dim, embed_dim)
         
         ## Get categorical embeddings and mask tokens to add to input embedding
+        # TODO try having a shared "base" initialized vector for each categorical embedding
+        # which we repeat over self.seq_len - 1 times 
+        # then each category's embedding = base_cat_embedding_vector + cat_specific_embedding
+        # base_embedding init is randn(0.02), let cat_specific_embedding init be randn(0.005)
+        # This is so categories that don't get seen that much start off around this base vector and the
+        # random noise doesn't overwrite the input's information that much
         self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim) * 0.02).to(device) # remove 1 for cls
         
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim) * 0.02).to(device)
