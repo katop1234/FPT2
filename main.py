@@ -15,7 +15,7 @@ batch_size_per_gpu = 128
 lr = 1e-5
 input_dim = 256
 embed_dim = 256
-depth = 12
+depth = 8
 
 # Variables
 num_gpus = torch.cuda.device_count()

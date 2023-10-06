@@ -222,7 +222,7 @@ class FeedForward(nn.Module):
         x = self.norm(x)
         return self.net(x)
 
-class TransformerBlock(nn.Module):
+class TransformerBlock(PrintableModule):
     def __init__(self, dim, heads=16):
         super().__init__()
 

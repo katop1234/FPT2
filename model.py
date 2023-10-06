@@ -63,6 +63,10 @@ class FPT(nn.Module):
                 module.weight.data.fill_(1.0)
 
         self.apply(initialize_weights)
+        
+        # For debugging
+        self.counter = 0
+        self.print_freq = 512
     
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
@@ -119,7 +123,16 @@ class FPT(nn.Module):
         
         depth = 0
         for blk in self.decoder_blocks:
+            if self.counter % self.print_freq == 0: 
+                input_tensor = x.clone()  # Store the input tensor before processing
+                
             x = blk(x, attention_mask)
+            
+            # Compute cosine similarity
+            if self.counter % self.print_freq == 0:
+                cos_sim = F.cosine_similarity(input_tensor.flatten(), x.flatten(), dim=0)
+                print(f"Cosine Similarity at depth {depth}: {cos_sim.item()}")
+            
             depth += 1
 
             num_nans =  (torch.isnan(x).sum().item())
@@ -145,5 +158,8 @@ class FPT(nn.Module):
         cls_token = self.forward_decoder(x, attention_mask)
         loss = self.forward_loss(cls_token, gt)
         # print("Finished a forward pass and got a loss of", loss.item())
+        
+        self.counter += 1
+        
         return loss
         

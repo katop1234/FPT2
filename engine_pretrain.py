@@ -33,7 +33,7 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
         d = time.time()
         mini_batch_loss.backward()
         e = time.time()
-        print("Backward pass took", e-d, "seconds")
+        # print("Backward pass took", e-d, "seconds")
 
     # update the parameters after all gradients have been accumulated for the entire step
     optimizer.step()
