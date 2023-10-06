@@ -32,7 +32,6 @@ class FPT(nn.Module):
         ## Embed raw tokens
         self.sined_time_feats = Time2VecEmbedding(embed_dim)
         
-        if input_dim is None: input_dim = embed_dim
         self.input_linear_projection = nn.Linear(input_dim, embed_dim)
         
         ## Get categorical embeddings and mask tokens to add to input embedding
