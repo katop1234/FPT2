@@ -121,6 +121,8 @@ class FinancialDataset(Dataset):
         
         # TODO add code for when all the tickers are done (i.e. stack is empty)
         
+        # TODO also pass in the Ticker so we we can have a learned token for each and the model uses that info
+        
         sample = None
         while sample is None:
             chosen_ticker = self.pop_stack_and_move_to_back()
