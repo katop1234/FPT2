@@ -1,11 +1,14 @@
 
 import time
+import numpy as np
 
 def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     total_loss_for_step = 0.
 
     # zero the gradients at the start as we will be accumulating them over the entire step
     optimizer.zero_grad()
+    
+    losses_list = []
 
     for i in range(accum_iter):
         mini_batch_loss = 0.  # initialize the loss for this mini-batch
@@ -21,6 +24,8 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
             mini_batch_loss += loss  # accumulate the loss tensors directly
             total_loss_for_step += loss.item()  # for logging purposes
             
+            losses_list.append(loss.item())
+            
             print("On sample", i*batch_size_per_gpu + j)
 
         # call backward for the entire mini-batch
@@ -32,6 +37,8 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
 
     # update the parameters after all gradients have been accumulated for the entire step
     optimizer.step()
+    
+    print("Mean std of losses list", np.mean(losses_list), np.std(losses_list))
 
     total_loss_for_step /= (batch_size_per_gpu * accum_iter)
     print("Total loss for the step:", total_loss_for_step)
