@@ -103,6 +103,11 @@ class FPT(nn.Module):
         x = torch.cat([non_time_tokens, sined_time_tokens], dim=1)
         
         # TODO try without these and see if it even matters!
+        # TODO i'm concerned about padding the shorter sequences with all 0s...
+        # feels like they might introduce a bunch of useless information?
+        # see if this is an issue by probing into trained model's parameters and 
+        # what it's doing, otherwise don't overengineer. feels off but i think
+        # transformers are smart enough to deal with it on their own.
         x = self.input_linear_projection(x)
 
         x += self.categorical_embeddings
