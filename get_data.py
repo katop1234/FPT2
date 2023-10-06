@@ -125,7 +125,7 @@ def write_all_SNP500_data():
     # Apply the calculate_gt function to each ticker group
     for col in list_of_cols_to_normalize:
         df = df.groupby('Ticker').apply(lambda group: percent_diff(group, col)).reset_index(drop=True)
-    
+    # TODO shift gt column forward by a day so it's future data!
     df.rename(columns={'TypicalPrice': 'gt'}, inplace=True)
     # Convert 'Date' to datetime if it's not already
     df['Date'] = pd.to_datetime(df['Date'])
@@ -176,4 +176,4 @@ def write_single_ticker_data_yfinance():
             print(f"Could not fetch data for {ticker}. Reason: {e}")
             continue
 
-# write_all_SNP500_data()
+write_all_SNP500_data()

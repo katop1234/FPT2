@@ -1,30 +1,41 @@
 
-from torch import inf
-import constants
+import time
 
-def train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
-    epoch_loss = 0.
+def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
+    total_loss_for_step = 0.
 
-    # zero the gradients
+    # zero the gradients at the start as we will be accumulating them over the entire step
     optimizer.zero_grad()
-    
-    print("Starting one epoch")
-    losses = []
+
     for i in range(accum_iter):
-        for _ in range(batch_size_per_gpu): # TODO implement batching lol
-            x, mask, y = dataset[i]
+        mini_batch_loss = 0.  # initialize the loss for this mini-batch
+
+        for j in range(batch_size_per_gpu): # loop for batching
+            a = time.time()
+            x, mask, y = dataset[-1] # index is irrelevant
+            b = time.time()
+            # print("Took", b-a, "seconds to get data")
             loss = model(x, mask, y)
-            epoch_loss += loss
+            c = time.time()
+            # print("Took", c-b, "seconds to run fwd pass")
+            mini_batch_loss += loss  # accumulate the loss tensors directly
+            total_loss_for_step += loss.item()  # for logging purposes
+            
+            print("On sample", i*batch_size_per_gpu + j)
 
-            losses.append(loss.item())
+        # call backward for the entire mini-batch
+        mini_batch_loss = mini_batch_loss / (batch_size_per_gpu * accum_iter)
+        d = time.time()
+        mini_batch_loss.backward()
+        e = time.time()
+        print("Backward pass took", e-d, "seconds")
 
-    # calculate the backward pass
-    print('calling backprop!')
-    epoch_loss.backward()
-    print("Called backprop after one epoch. Got epoch loss of ", epoch_loss)
-    print("With losses", losses)
-
-    # update the parameters
+    # update the parameters after all gradients have been accumulated for the entire step
     optimizer.step()
 
-    return model, epoch_loss
+    total_loss_for_step /= (batch_size_per_gpu * accum_iter)
+    print("Total loss for the step:", total_loss_for_step)
+    with open("losses.txt", "a") as f:
+        f.write(f"Loss: {total_loss_for_step}\n")
+
+    return model, total_loss_for_step

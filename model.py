@@ -13,6 +13,7 @@ class FPT(nn.Module):
     def __init__(self,
                  embed_dim=1280,
                  depth=32,
+                 input_dim=None,
                  ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -31,7 +32,8 @@ class FPT(nn.Module):
         ## Embed raw tokens
         self.sined_time_feats = Time2VecEmbedding(embed_dim)
         
-        self.input_linear_projection = nn.Linear(embed_dim, embed_dim)
+        if input_dim is None: input_dim = embed_dim
+        self.input_linear_projection = nn.Linear(input_dim, embed_dim)
         
         ## Get categorical embeddings and mask tokens to add to input embedding
         self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim) * 0.02).to(device) # remove 1 for cls
@@ -66,12 +68,6 @@ class FPT(nn.Module):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat([cls_token, x], dim=1)
         return x
-
-    def pad_x_for_embed_dim(self, tensor):
-        padding_size = self.embed_dim - tensor.size(1)
-        if padding_size > 0:
-            tensor = F.pad(tensor, (0, padding_size))
-        return tensor
     
     def forward_decoder(self, x, attention_mask=None):
         
@@ -86,7 +82,6 @@ class FPT(nn.Module):
         
         # TODO replace this with continuous embedding such that it 
         # just is Linear(input_dim, embed_dim)
-        x = self.pad_x_for_embed_dim(x)
         x = x.unsqueeze(0)
 
         # Split the tensor based on your token types

@@ -5,14 +5,15 @@ import torch.multiprocessing as mp
 import constants
 import os
 from model import FPT
-from engine_pretrain import train_one_epoch
+from engine_pretrain import train_one_step
 from dataset_factory import FinancialDataset
 
 # Hyperparameters
-num_epochs = 1000
+num_steps = 1000
 total_batch_size = 256
-batch_size_per_gpu = 1
+batch_size_per_gpu = 128
 lr = 1e-5
+input_dim = 256
 embed_dim = 256
 depth = 12
 
@@ -34,7 +35,8 @@ def main_worker(gpu, ngpus_per_node):
         torch.distributed.init_process_group(backend='nccl')
 
     model = FPT(embed_dim=embed_dim,
-                 depth=depth,
+                depth=depth,
+                input_dim=input_dim,
                 )
     
     # Calculate the total number of parameters
@@ -64,8 +66,9 @@ def main_worker(gpu, ngpus_per_node):
     dataset = FinancialDataset("SNPdata.ser")
 
     print("Using batch size per gpu", batch_size_per_gpu, "accum iter", accum_iter)
-    for epoch in range(num_epochs):
-        train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
+    # TODO make sure this uses distributed training!
+    for step in range(num_steps):
+        train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
 
 def main():
     ngpus_per_node = torch.cuda.device_count()
