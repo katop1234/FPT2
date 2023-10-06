@@ -78,36 +78,6 @@ def percent_diff(group, col_name):
     if num_nans > 0:
         print("WARNING got {num_nans} nans in column", col_name, "for ticker", group.index)
 
-    inf_counts = np.isinf(group).sum()
-    if inf_counts.sum() > 0:
-        print(f"WARNING got {inf_counts.sum()} infs in column BEFORE NORMALIZING", col_name, "for ticker", group.index)
-
-    group[col_name] = (group[col_name] - group['shifted_col']) / group['shifted_col']
-
-    group[col_name].fillna(0, inplace=True)
-    group.replace([np.inf, -np.inf], 0, inplace=True)
-
-    inf_counts = np.isinf(group).sum()
-    if inf_counts.sum() > 0:
-        print(f"WARNING got {inf_counts.sum()} infs in column", col_name, "AFTER NORMALIZING for ticker", group.index)
-    
-    group.drop(columns=['shifted_col'], inplace=True)
-    group.drop(group.index[0], inplace=True) # drop first row
-
-    return group
-
-def percent_diff(group, col_name):
-    '''
-    Use this to get the gt column
-    Apply function to each ticker group
-    '''
-    group['shifted_col'] = group[col_name].shift(1)
-    group['shifted_col'].iloc[0] = 1 # dummy value, we drop the first row anyway
-
-    num_nans = group['shifted_col'].isna().sum()
-    if num_nans > 0:
-        print("WARNING got {num_nans} nans in column", col_name, "for ticker", group.index)
-
     group[col_name] = (group[col_name] - group['shifted_col']) / group['shifted_col']
 
     group[col_name].fillna(0, inplace=True)
