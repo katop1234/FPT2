@@ -36,6 +36,12 @@ def get_single_ticker_data_yfinance(ticker):
     data.reset_index(inplace=True)
     
     data['TypicalPrice'] = data[['High', 'Low', 'Close']].mean(axis=1)
+    
+    # Shift the column up by one position
+    data['TypicalPrice'] = data['TypicalPrice'].shift(-1)
+
+    # Delete the last row of the entire DataFrame bc don't have gt for prediction
+    data = data.iloc[:-1]
 
     return data
 

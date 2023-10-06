@@ -133,7 +133,6 @@ class FinancialDataset(Dataset):
                 # done with that ticker
                 self.stack = self.stack[:-1]
             else:
-
                 if (np.isnan(sample).any() or np.isinf(sample).any() or 
                     np.isnan(y).any() or np.isinf(y).any()):
                     print(f"Warning: Detected NaN or Inf values in data for ticker: {chosen_ticker}. Skipping to the next sample." * 10)

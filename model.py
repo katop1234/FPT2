@@ -11,7 +11,7 @@ device = constants.device
 
 class FPT(nn.Module):
     def __init__(self,
-                 embed_dim=1280,
+                 embed_dim=256,
                  depth=32,
                  input_dim=None,
                  ):
