@@ -182,3 +182,14 @@ def mean_squared_error(gt_val, pred_val):
     assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"
     return (gt_val - pred_val) ** 2
 
+def fix_random_seed(seed=4):
+    """
+    Ensure reproducibility in PyTorch scripts.
+    """
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        

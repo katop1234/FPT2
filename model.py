@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import constants
 
 device = constants.device
+utils.fix_random_seed()
 
 class FPT(nn.Module):
     def __init__(self,
