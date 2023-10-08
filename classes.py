@@ -188,10 +188,8 @@ class Attention(nn.Module):
         # print("sim", (torch.isnan(sim).sum().item()), sim)
 
         if attention_mask is not None:
-            attention_mask = attention_mask.unsqueeze(0)  # Add batch dimension
-            attention_mask = attention_mask.unsqueeze(1).expand(-1, h, -1)  # Add heads dimension and expand to number of heads
-            attention_mask = attention_mask.unsqueeze(2).expand(-1, h, -1, sim.size(-1))  # Add a dimension before seq_len
-
+            seq_len = x.shape[1]  # get sequence length from x
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(2).expand(-1, h, seq_len, -1)
             sim.masked_fill_(~attention_mask, float('-inf'))
 
         # print("min of sim", torch.min(sim), "max of sim", torch.max(sim))

@@ -146,6 +146,6 @@ class FinancialDataset(Dataset):
                 mask = [True] + mask # for CLS
                 mask = torch.tensor(mask, dtype=torch.bool).to(device)
                 
-                y = torch.tensor(y, requires_grad=True).unsqueeze(0).unsqueeze(0).to(device)
+                y = torch.tensor(y, requires_grad=True).unsqueeze(0).to(device)
                 
                 return x, mask, y # TODO convert to torch during init and figure out how to feed in mask

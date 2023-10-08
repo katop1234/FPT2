@@ -8,15 +8,27 @@ from model import FPT
 from engine_pretrain import train_one_step
 from dataset_factory import FinancialDataset
 
+'''
+cmd to run
+conda activate FPT
+cd /data/katop1234/FPT2/
+export CUDA_VISIBLE_DEVICES=0
+CUDA_VISIBLE_DEVICES=0
+python3 main.py
+'''
+
 # Hyperparameters
 num_steps = 1000
-total_batch_size = 512
+total_batch_size = 1024
 batch_size_per_gpu = 128
-lr = 1e-6
+lr = 1e-7
 input_dim = 256
 embed_dim = 256
-depth = 2
+depth = 8
 checkpt_freq = 25
+
+# TODO add support to set num epochs
+# TODO total steps should be len(dataset) / batch_size, so don't set it aove
 
 # Variables
 num_gpus = torch.cuda.device_count()
@@ -68,7 +80,7 @@ def main_worker(gpu, ngpus_per_node):
     
     # check if main prcoess then only print
     print(f"Using GPU: {gpu} ")
-    if gpu == 0: print("using accum iter of ", accum_iter)
+    print("using accum iter of ", accum_iter)
     
     eff_batch_size = batch_size_per_gpu * ngpus_per_node * accum_iter
     eff_learning_rate = lr * eff_batch_size / 1024

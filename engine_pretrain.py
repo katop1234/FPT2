@@ -1,6 +1,7 @@
 
 import time
 import numpy as np
+import torch
 
 def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     total_loss_for_step = 0.
@@ -13,33 +14,37 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     for i in range(accum_iter):
         mini_batch_loss = 0.  # initialize the loss for this mini-batch
 
+        X = []
+        MASKS = []
+        Y = []
+        a = time.time()
         for j in range(batch_size_per_gpu): # loop for batching
-            a = time.time()
             x, mask, y = dataset[-1] # index is irrelevant
-            b = time.time()
-            # print("Took", b-a, "seconds to get data")
-            loss = model(x, mask, y)
-            c = time.time()
-            # print("Took", c-b, "seconds to run fwd pass")
-            mini_batch_loss += loss  # accumulate the loss tensors directly
-            total_loss_for_step += loss.item()  # for logging purposes
-            
-            losses_list.append(loss.item())
-            
-            # print("On sample", i*batch_size_per_gpu + j)
-
-        # call backward for the entire mini-batch
-        mini_batch_loss = mini_batch_loss / (batch_size_per_gpu * accum_iter)
+            X.append(x)
+            MASKS.append(mask)
+            Y.append(y)
+        
+        X = torch.stack(X, dim=0)        # Stacking along a new dimension (batch dimension)
+        MASKS = torch.stack(MASKS, dim=0)
+        Y = torch.stack(Y, dim=0)
+        b = time.time()
+        print("Took", b-a, "seconds to get all the data")
+        loss = model(X, MASKS, Y)
+        c = time.time()
+        print("Took", c-b, "seconds to run fwd pass")
+        
+        loss /= accum_iter
+        loss = loss.mean()
+        loss.backward()
         d = time.time()
-        mini_batch_loss.backward()
-        e = time.time()
-        # print("Backward pass took", e-d, "seconds")
+        print("Took", d-c, "seconds to run backward pass")
+        
+        total_loss_for_step += loss.item()
 
     # update the parameters after all gradients have been accumulated for the entire step
     optimizer.step()
     
-    total_loss_for_step /= (batch_size_per_gpu * accum_iter)
     print("Total loss for the step:", total_loss_for_step)
-    losses_std = np.std(losses_list)
+    losses_std = 0 # np.std(losses_list)
     
     return total_loss_for_step, losses_std

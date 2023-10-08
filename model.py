@@ -76,7 +76,7 @@ class FPT(nn.Module):
         
         # For debugging
         self.counter = 0
-        self.print_freq = 512
+        self.print_freq = 4
     
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
@@ -86,7 +86,7 @@ class FPT(nn.Module):
     def forward_decoder(self, x, attention_mask=None):
         
         x_np = x.cpu().squeeze(0).detach().numpy()
-        np.savetxt("input_x.txt", x_np, fmt="%s", delimiter=",")
+        # np.savetxt("input_x.txt", x_np, fmt="%s", delimiter=",")
 
         nan_count = torch.isnan(x).sum().item()
         
@@ -96,7 +96,6 @@ class FPT(nn.Module):
         
         # TODO replace this with continuous embedding such that it 
         # just is Linear(input_dim, embed_dim)
-        x = x.unsqueeze(0)
 
         # Split the tensor based on your token types
         # TODO change hardcoding on this!
@@ -116,7 +115,7 @@ class FPT(nn.Module):
         x += self.categorical_embeddings
         
         x_np = x.cpu().squeeze(0).detach().numpy()
-        np.savetxt("x_after_add_cat_emb.txt", x_np, fmt="%s", delimiter=",")
+        # np.savetxt("x_after_add_cat_emb.txt", x_np, fmt="%s", delimiter=",")
 
         nan_count = torch.isnan(x).sum().item()
         
@@ -134,7 +133,7 @@ class FPT(nn.Module):
             print(f"Number of NaN values after appending cls: {nan_count}")
             exit()
         
-        np.savetxt("transformer_input_tensor_data.txt", x_np, fmt="%s", delimiter=",")
+        # np.savetxt("transformer_input_tensor_data.txt", x_np, fmt="%s", delimiter=",")
         
         depth = 0
         for blk in self.decoder_blocks:
