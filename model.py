@@ -43,10 +43,10 @@ class FPT(nn.Module):
         # base_embedding init is randn(0.02), let cat_specific_embedding init be randn(0.001)
         # This is so categories that don't get seen that much start off around this base vector and the
         # random noise doesn't overwrite the input's information that much
-        self.base_categorical_embedding = nn.Parameter(torch.randn(1, self.embed_dim).repeat(self.seq_len - 1, 1) * 0.02).to(device)
+        #self.base_categorical_embedding = nn.Parameter(torch.randn(1, self.embed_dim).repeat(self.seq_len - 1, 1) * 0.02).to(device)
         
-        self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim) * 0.001).to(device) # remove 1 for cls
-        self.categorical_embeddings += self.base_categorical_embedding
+        self.categorical_embeddings = nn.Parameter(torch.randn(self.seq_len - 1, self.embed_dim) * 0.02).to(device) # remove 1 for cls
+        #self.categorical_embeddings += self.base_categorical_embedding
         
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim) * 0.02).to(device)
         
@@ -76,7 +76,7 @@ class FPT(nn.Module):
         
         # For debugging
         self.counter = 0
-        self.print_freq = 256
+        self.print_freq = 512
     
     def append_cls(self, x):
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)

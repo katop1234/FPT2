@@ -10,12 +10,12 @@ from dataset_factory import FinancialDataset
 
 # Hyperparameters
 num_steps = 1000
-total_batch_size = 256
+total_batch_size = 512
 batch_size_per_gpu = 128
-lr = 1e-5
+lr = 1e-6
 input_dim = 256
 embed_dim = 256
-depth = 8
+depth = 2
 checkpt_freq = 25
 
 # Variables
@@ -44,6 +44,7 @@ def main_worker(gpu, ngpus_per_node):
     # Ensure the directory exists
     config_folder = f"batch_{total_batch_size}_lr_{lr}_input_{input_dim}_embed_{embed_dim}_depth_{depth}"
     checkpoint_dir = os.path.join("./serialized/checkpoints/", config_folder)
+    loss_txt_pth = os.path.join(checkpoint_dir, "losses.txt")
 
     # Ensure the directory exists
     if not os.path.exists(checkpoint_dir):
@@ -71,14 +72,17 @@ def main_worker(gpu, ngpus_per_node):
     
     eff_batch_size = batch_size_per_gpu * ngpus_per_node * accum_iter
     eff_learning_rate = lr * eff_batch_size / 1024
-    optimizer = torch.optim.Adam(model.parameters(), lr=eff_learning_rate)
+    optimizer = torch.optim.SGD(model.parameters(), lr=eff_learning_rate)
 
     dataset = FinancialDataset("SNPdata.ser")
 
     print("Using batch size per gpu", batch_size_per_gpu, "accum iter", accum_iter)
     # TODO make sure this uses distributed training!
     for step in range(num_steps):
-        train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
+        mean_loss, std_loss = train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
+        
+        with open(loss_txt_pth, "a") as f:
+            f.write(f"Loss: {mean_loss}, Std Dev: {std_loss}\n")
         
         if step % checkpt_freq == 0:
             # Construct the filename with just the step count

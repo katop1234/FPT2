@@ -40,8 +40,6 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     
     total_loss_for_step /= (batch_size_per_gpu * accum_iter)
     print("Total loss for the step:", total_loss_for_step)
-    std_dev = np.std(losses_list)
-    with open("losses.txt", "a") as f:
-        f.write(f"Loss: {total_loss_for_step}, Std Dev: {std_dev}\n")
-
-    return model, total_loss_for_step
+    losses_std = np.std(losses_list)
+    
+    return total_loss_for_step, losses_std
