@@ -72,7 +72,7 @@ def main_worker(gpu, ngpus_per_node):
     
     eff_batch_size = batch_size_per_gpu * ngpus_per_node * accum_iter
     eff_learning_rate = lr * eff_batch_size / 1024
-    optimizer = torch.optim.SGD(model.parameters(), lr=eff_learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=eff_learning_rate)
 
     dataset = FinancialDataset("SNPdata.ser")
 
