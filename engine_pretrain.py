@@ -34,7 +34,6 @@ def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
         print("Took", c-b, "seconds to run fwd pass")
         
         loss /= accum_iter
-        loss = loss.mean()
         loss.backward()
         d = time.time()
         print("Took", d-c, "seconds to run backward pass")

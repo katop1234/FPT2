@@ -10,21 +10,21 @@ from dataset_factory import FinancialDataset
 
 '''
 cmd to run
-conda activate FPT
+conda activate spder_compr
 cd /data/katop1234/FPT2/
-export CUDA_VISIBLE_DEVICES=0
-CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
+CUDA_VISIBLE_DEVICES=1
 python3 main.py
 '''
 
 # Hyperparameters
 num_steps = 1000
-total_batch_size = 1024
+total_batch_size = 4096
 batch_size_per_gpu = 128
-lr = 1e-7
+lr = 1e-6
 input_dim = 256
 embed_dim = 256
-depth = 8
+depth = 4
 checkpt_freq = 25
 
 # TODO add support to set num epochs

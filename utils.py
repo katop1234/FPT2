@@ -180,7 +180,16 @@ def percent_error(gt_val, pred_val):
 
 def mean_squared_error(gt_val, pred_val):
     assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"
-    return (gt_val - pred_val) ** 2
+    return ((gt_val - pred_val) ** 2).mean()
+
+def root_mean_squared_error(gt_val, pred_val):
+    assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"
+    return ((gt_val - pred_val) ** 2).mean() ** 0.5
+
+# TODO experiment with l1 loss. May be less focused on outliers, so we end up with stronger fine-tuning signal?
+def mean_absolute_error(gt_val, pred_val):
+    assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"
+    return abs(gt_val - pred_val).mean()
 
 def fix_random_seed(seed=4):
     """
