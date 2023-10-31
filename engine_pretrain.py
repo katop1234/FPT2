@@ -21,8 +21,15 @@ def train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
     # calculate the backward pass
     print('calling backprop!')
     epoch_loss.backward()
-    print("Called backprop after one epoch. Got epoch loss of ", epoch_loss)
-    print("With losses", losses)
+    message = f"Called backprop after one epoch. Got epoch loss of {epoch_loss}\n"
+
+    # Print to console
+    print(message)
+
+    # Append to losses.txt
+    with open('losses.txt', 'a') as file:
+        file.write(message)
+        print("With losses", losses)
 
     # update the parameters
     optimizer.step()
