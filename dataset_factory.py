@@ -8,24 +8,21 @@ import constants
 # TODO do proper batching
 device = constants.device
 
-date_ranges = utils.get_date_ranges()
 base_categories = utils.base_categories()
 time2vec_categories = utils.get_time2vec_categories()
 token_length = 2 ** utils.POWER_OF_2 # Dimensionality of token
 num_base_categories = len(base_categories)
 num_categories = len(base_categories) + len(time2vec_categories)
-num_tokens = len(date_ranges) * len(base_categories) + len(time2vec_categories)
+num_tokens_back = constants.num_tokens_back
 
 class Ticker:
     def __init__(self, metadata):
         self.ticker = metadata["ticker"]
-        # self.start_date = metadata["start_date"]
-        # self.end_date = metadata["end_date"]
         self.num_rows = metadata["num_rows"]
         self.raw_data = metadata["raw_data"]
         self.gt = metadata["gt"]
 
-        self.counter = 365 # TODO make hyperparameter
+        self.counter = num_tokens_back*token_length # TODO make hyperparameter
 
     # one datapoint, 200 tokens of length 256
     # 20 time windows, of 10 categories
@@ -33,22 +30,13 @@ class Ticker:
         if self.counter >= self.num_rows:
             return (None, None, None)
         X = np.empty((0, token_length))
-        mask = []
-        for start, end in date_ranges:
-            if self.counter - end < 0:
-                mask += [False] * num_base_categories
-                array = np.random.randn(num_base_categories, token_length) # randn to avoid layernorm explosion
-            else:
-                mask += [True] * num_base_categories
-                # print(self.raw_data.shape)
-                # print(self.raw_data)
-                # exit()
-                array = self.raw_data[self.counter-end:self.counter-start, :-len(time2vec_categories)]
-                # WARNING find a better way to feed in the raw price values without hardcoding out the time2vec parts
-                array = array.T
-                if array.shape[1] < token_length:
-                    padding = np.zeros((array.shape[0], token_length-array.shape[1]))
-                    array = np.hstack((array, padding))
+        mask = [] #TODO: fix mask
+
+        for i in range(num_tokens_back):
+            mask += [True] * num_base_categories
+
+            array = self.raw_data[self.counter-(i+1)*token_length:self.counter-i*token_length, :-len(time2vec_categories)]
+            array = array.T
 
             X = np.vstack((X, array))
 
@@ -60,6 +48,8 @@ class Ticker:
         np.savetxt("array_data.txt", X, fmt="%s", delimiter=",")
         
         y = self.gt[self.counter]
+
+        # print(X.shape)
 
         self.counter += 1
         return X, mask, y

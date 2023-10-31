@@ -23,10 +23,16 @@ class FPT(nn.Module):
         
         self.categories_lookup = dict()
         self.categories_lookup["floats"] = utils.get_floats_categories()
-        self.categories_lookup["text"] = utils.get_text_categories()
+        # self.categories_lookup["text"] = utils.get_text_categories()
         self.categories_lookup["datetime"] = utils.get_time2vec_categories()
-        self.all_categories = self.categories_lookup["floats"] + self.categories_lookup["datetime"] # + self.categories_lookup["text"] 
-        self.seq_len = len(self.all_categories) + 1 # +1 for the cls token
+
+        
+        
+
+        #self.all_categories = self.categories_lookup["floats"] + self.categories_lookup["datetime"] # + self.categories_lookup["text"] 
+        self.seq_len = constants.num_tokens_back * len(utils.base_categories()) + len(utils.get_time2vec_categories()) + 1 # +1 for the cls token
+
+        print("using seq len of ", self.seq_len)
         
         # (Only ["Ticker"] for now)
         self.ticker_list = utils.get_ticker_list()
