@@ -203,23 +203,21 @@ class Attention(nn.Module):
         # print("out", (torch.isnan(out).sum().item()), out)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
-
+    
 class FeedForward(nn.Module):
     def __init__(self, dim, mult = 4):
         super().__init__()
         self.norm = nn.LayerNorm(dim)
 
         inner_dim = int(dim * mult)
-        self.net = nn.Sequential(
-            nn.Linear(dim, inner_dim, bias = True),
-            nn.GELU(),
-            nn.Linear(inner_dim, dim, bias = True)
-        )
+        self.w1 = nn.Linear(dim, inner_dim, bias = True)
+        self.w2 = nn.Linear(inner_dim, dim, bias = True)
+        self.w3 = nn.Linear(dim, inner_dim, bias = True)  # Assuming you want a linear layer here for the multiplication
 
     def forward(self, x):
         x = self.norm(x)
-        return self.net(x)
-
+        return self.w2(F.silu(self.w1(x)) * self.w3(x))
+    
 class TransformerBlock(nn.Module):
     def __init__(self, dim, heads=16):
         super().__init__()
