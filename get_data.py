@@ -36,6 +36,12 @@ def get_single_ticker_data_yfinance(ticker):
     data.reset_index(inplace=True)
     
     data['TypicalPrice'] = data[['High', 'Low', 'Close']].mean(axis=1)
+    
+    # Shift the column up by one position
+    data['TypicalPrice'] = data['TypicalPrice'].shift(-1)
+
+    # Delete the last row of the entire DataFrame bc don't have gt for prediction
+    data = data.iloc[:-1]
 
     return data
 
@@ -72,36 +78,6 @@ def percent_diff(group, col_name):
     if num_nans > 0:
         print("WARNING got {num_nans} nans in column", col_name, "for ticker", group.index)
 
-    inf_counts = np.isinf(group).sum()
-    if inf_counts.sum() > 0:
-        print(f"WARNING got {inf_counts.sum()} infs in column BEFORE NORMALIZING", col_name, "for ticker", group.index)
-
-    group[col_name] = (group[col_name] - group['shifted_col']) / group['shifted_col']
-
-    group[col_name].fillna(0, inplace=True)
-    group.replace([np.inf, -np.inf], 0, inplace=True)
-
-    inf_counts = np.isinf(group).sum()
-    if inf_counts.sum() > 0:
-        print(f"WARNING got {inf_counts.sum()} infs in column", col_name, "AFTER NORMALIZING for ticker", group.index)
-    
-    group.drop(columns=['shifted_col'], inplace=True)
-    group.drop(group.index[0], inplace=True) # drop first row
-
-    return group
-
-def percent_diff(group, col_name):
-    '''
-    Use this to get the gt column
-    Apply function to each ticker group
-    '''
-    group['shifted_col'] = group[col_name].shift(1)
-    group['shifted_col'].iloc[0] = 1 # dummy value, we drop the first row anyway
-
-    num_nans = group['shifted_col'].isna().sum()
-    if num_nans > 0:
-        print("WARNING got {num_nans} nans in column", col_name, "for ticker", group.index)
-
     group[col_name] = (group[col_name] - group['shifted_col']) / group['shifted_col']
 
     group[col_name].fillna(0, inplace=True)
@@ -125,7 +101,7 @@ def write_all_SNP500_data():
     # Apply the calculate_gt function to each ticker group
     for col in list_of_cols_to_normalize:
         df = df.groupby('Ticker').apply(lambda group: percent_diff(group, col)).reset_index(drop=True)
-    
+    # TODO shift gt column forward by a day so it's future data!
     df.rename(columns={'TypicalPrice': 'gt'}, inplace=True)
     # Convert 'Date' to datetime if it's not already
     df['Date'] = pd.to_datetime(df['Date'])
@@ -176,4 +152,4 @@ def write_single_ticker_data_yfinance():
             print(f"Could not fetch data for {ticker}. Reason: {e}")
             continue
 
-# write_all_SNP500_data()
+write_all_SNP500_data()

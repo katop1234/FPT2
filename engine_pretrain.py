@@ -1,37 +1,49 @@
 
-from torch import inf
-import constants
+import time
+import numpy as np
+import torch
 
-def train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
-    epoch_loss = 0.
+def train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu):
+    total_loss_for_step = 0.
 
-    # zero the gradients
+    # zero the gradients at the start as we will be accumulating them over the entire step
     optimizer.zero_grad()
     
-    print("Starting one epoch")
-    losses = []
+    losses_list = []
+
     for i in range(accum_iter):
-        for _ in range(batch_size_per_gpu): # TODO implement batching lol
-            x, mask, y = dataset[i]
-            loss = model(x, mask, y)
-            epoch_loss += loss
+        mini_batch_loss = 0.  # initialize the loss for this mini-batch
 
-            losses.append(loss.item())
+        X = []
+        MASKS = []
+        Y = []
+        a = time.time()
+        for j in range(batch_size_per_gpu): # loop for batching
+            x, mask, y = dataset[-1] # index is irrelevant
+            X.append(x)
+            MASKS.append(mask)
+            Y.append(y)
+        
+        X = torch.stack(X, dim=0)        # Stacking along a new dimension (batch dimension)
+        MASKS = torch.stack(MASKS, dim=0)
+        Y = torch.stack(Y, dim=0)
+        b = time.time()
+        print("Took", b-a, "seconds to get all the data")
+        loss = model(X, MASKS, Y)
+        c = time.time()
+        print("Took", c-b, "seconds to run fwd pass")
+        
+        loss /= accum_iter
+        loss.backward()
+        d = time.time()
+        print("Took", d-c, "seconds to run backward pass")
+        
+        total_loss_for_step += loss.item()
 
-    # calculate the backward pass
-    print('calling backprop!')
-    epoch_loss.backward()
-    message = f"Called backprop after one epoch. Got epoch loss of {epoch_loss}\n"
-
-    # Print to console
-    print(message)
-
-    # Append to losses.txt
-    with open('losses.txt', 'a') as file:
-        file.write(message)
-        print("With losses", losses)
-
-    # update the parameters
+    # update the parameters after all gradients have been accumulated for the entire step
     optimizer.step()
-
-    return model, epoch_loss
+    
+    print("Total loss for the step:", total_loss_for_step)
+    losses_std = 0 # np.std(losses_list)
+    
+    return total_loss_for_step, losses_std

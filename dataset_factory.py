@@ -121,6 +121,8 @@ class FinancialDataset(Dataset):
         
         # TODO add code for when all the tickers are done (i.e. stack is empty)
         
+        # TODO also pass in the Ticker so we we can have a learned token for each and the model uses that info
+        
         sample = None
         while sample is None:
             chosen_ticker = self.pop_stack_and_move_to_back()
@@ -133,7 +135,6 @@ class FinancialDataset(Dataset):
                 # done with that ticker
                 self.stack = self.stack[:-1]
             else:
-
                 if (np.isnan(sample).any() or np.isinf(sample).any() or 
                     np.isnan(y).any() or np.isinf(y).any()):
                     print(f"Warning: Detected NaN or Inf values in data for ticker: {chosen_ticker}. Skipping to the next sample." * 10)
@@ -145,6 +146,7 @@ class FinancialDataset(Dataset):
                 mask = [True] + mask # for CLS
                 mask = torch.tensor(mask, dtype=torch.bool).to(device)
                 
-                y = torch.tensor(y, requires_grad=True).unsqueeze(0).unsqueeze(0).to(device)
+                y = (y - constants.gt_mean) / constants.gt_std
+                y = torch.tensor(y, requires_grad=True).unsqueeze(0).to(device)
                 
                 return x, mask, y # TODO convert to torch during init and figure out how to feed in mask

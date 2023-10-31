@@ -188,10 +188,8 @@ class Attention(nn.Module):
         # print("sim", (torch.isnan(sim).sum().item()), sim)
 
         if attention_mask is not None:
-            attention_mask = attention_mask.unsqueeze(0)  # Add batch dimension
-            attention_mask = attention_mask.unsqueeze(1).expand(-1, h, -1)  # Add heads dimension and expand to number of heads
-            attention_mask = attention_mask.unsqueeze(2).expand(-1, h, -1, sim.size(-1))  # Add a dimension before seq_len
-
+            seq_len = x.shape[1]  # get sequence length from x
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(2).expand(-1, h, seq_len, -1)
             sim.masked_fill_(~attention_mask, float('-inf'))
 
         # print("min of sim", torch.min(sim), "max of sim", torch.max(sim))
@@ -230,6 +228,8 @@ class TransformerBlock(nn.Module):
         self.feed_forward = FeedForward(dim)
 
     def forward(self, x, attention_mask=None, context=None):
+        # TODO try putting "gating" parameters here 
+        # i.e. x = p1*blk(x) + p2*x, where p1, p2 are init to 1
         x = self.attention(x, attention_mask, context) + x
         # print("x after cross attn", x, torch.min(x), torch.max(x))
         nan_count = torch.isnan(x).sum().item()

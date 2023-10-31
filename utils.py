@@ -136,6 +136,7 @@ def get_date_ranges():
             output.append((days_back[i - 1], days_back[i]))
 
     return output
+
 def get_floats_categories():
     '''
     For getting the windows, here's how the logic works. If we feed in power_of_2 = 8 and num_mults = 12, 
@@ -180,5 +181,25 @@ def percent_error(gt_val, pred_val):
 
 def mean_squared_error(gt_val, pred_val):
     assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"
-    return (gt_val - pred_val) ** 2
+    return ((gt_val - pred_val) ** 2).mean()
 
+def root_mean_squared_error(gt_val, pred_val):
+    assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"
+    return ((gt_val - pred_val) ** 2).mean() ** 0.5
+
+# TODO experiment with l1 loss. May be less focused on outliers, so we end up with stronger fine-tuning signal?
+def mean_absolute_error(gt_val, pred_val):
+    assert pred_val.shape == gt_val.shape, f"pred_val.shape: {pred_val.shape}, gt_val.shape: {gt_val.shape}"
+    return abs(gt_val - pred_val).mean()
+
+def fix_random_seed(seed=4):
+    """
+    Ensure reproducibility in PyTorch scripts.
+    """
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        

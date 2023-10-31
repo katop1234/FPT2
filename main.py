@@ -5,16 +5,30 @@ import torch.multiprocessing as mp
 import constants
 import os
 from model import FPT
-from engine_pretrain import train_one_epoch
+from engine_pretrain import train_one_step
 from dataset_factory import FinancialDataset
 
+'''
+cmd to run
+conda activate spder_compr
+cd /data/katop1234/FPT2/
+export CUDA_VISIBLE_DEVICES=1
+CUDA_VISIBLE_DEVICES=1
+python3 main.py
+'''
+
 # Hyperparameters
-num_epochs = 1000
-total_batch_size = 256
-batch_size_per_gpu = 1
-lr = 1e-5
+num_steps = 1000
+total_batch_size = 4096
+batch_size_per_gpu = 128
+lr = 1e-6
+input_dim = 256
 embed_dim = 256
-depth = 12
+depth = 4
+checkpt_freq = 25
+
+# TODO add support to set num epochs
+# TODO total steps should be len(dataset) / batch_size, so don't set it aove
 
 # Variables
 num_gpus = torch.cuda.device_count()
@@ -33,9 +47,20 @@ def main_worker(gpu, ngpus_per_node):
         torch.cuda.set_device(gpu)
         torch.distributed.init_process_group(backend='nccl')
 
+    # TODO add weight decay and dropout later
     model = FPT(embed_dim=embed_dim,
-                 depth=depth,
+                depth=depth,
+                input_dim=input_dim,
                 )
+    
+    # Ensure the directory exists
+    config_folder = f"batch_{total_batch_size}_lr_{lr}_input_{input_dim}_embed_{embed_dim}_depth_{depth}"
+    checkpoint_dir = os.path.join("./serialized/checkpoints/", config_folder)
+    loss_txt_pth = os.path.join(checkpoint_dir, "losses.txt")
+
+    # Ensure the directory exists
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     
     # Calculate the total number of parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -55,7 +80,7 @@ def main_worker(gpu, ngpus_per_node):
     
     # check if main prcoess then only print
     print(f"Using GPU: {gpu} ")
-    if gpu == 0: print("using accum iter of ", accum_iter)
+    print("using accum iter of ", accum_iter)
     
     eff_batch_size = batch_size_per_gpu * ngpus_per_node * accum_iter
     eff_learning_rate = lr * eff_batch_size / 1024
@@ -64,8 +89,20 @@ def main_worker(gpu, ngpus_per_node):
     dataset = FinancialDataset("SNPdata.ser")
 
     print("Using batch size per gpu", batch_size_per_gpu, "accum iter", accum_iter)
-    for epoch in range(num_epochs):
-        train_one_epoch(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
+    # TODO make sure this uses distributed training!
+    for step in range(num_steps):
+        mean_loss, std_loss = train_one_step(model, dataset, accum_iter, optimizer, batch_size_per_gpu)
+        
+        with open(loss_txt_pth, "a") as f:
+            f.write(f"Loss: {mean_loss}, Std Dev: {std_loss}\n")
+        
+        if step % checkpt_freq == 0:
+            # Construct the filename with just the step count
+            filename = f"model_step_{step}.pt"
+            filepath = os.path.join(checkpoint_dir, filename)
+            
+            # Save the model
+            torch.save(model.state_dict(), filepath)
 
 def main():
     ngpus_per_node = torch.cuda.device_count()
