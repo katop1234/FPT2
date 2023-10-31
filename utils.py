@@ -136,6 +136,7 @@ def get_date_ranges():
             output.append((days_back[i - 1], days_back[i]))
 
     return output
+
 def get_floats_categories():
     '''
     For getting the windows, here's how the logic works. If we feed in power_of_2 = 8 and num_mults = 12, 

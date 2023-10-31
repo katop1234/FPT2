@@ -159,6 +159,7 @@ class FPT(nn.Module):
     
     def forward_loss(self, cls_token, gt):
         pred = self.predictor(cls_token)
+        
         loss = utils.root_mean_squared_error(gt, pred)
         return loss
     
