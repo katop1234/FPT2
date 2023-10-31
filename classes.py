@@ -219,6 +219,20 @@ class FeedForward(nn.Module):
     def forward(self, x):
         x = self.norm(x)
         return self.net(x)
+    
+class FeedForward(nn.Module):
+    def __init__(self, dim, mult = 4):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+
+        inner_dim = int(dim * mult)
+        self.w1 = nn.Linear(dim, inner_dim, bias = True)
+        self.w2 = nn.Linear(inner_dim, dim, bias = True)
+        self.w3 = nn.Linear(dim, inner_dim, bias = True)  # Assuming you want a linear layer here for the multiplication
+
+    def forward(self, x):
+        x = self.norm(x)
+        return self.w2(F.silu(self.w1(x)) * self.w3(x))
 
 class TransformerBlock(nn.Module):
     def __init__(self, dim, heads=16):
