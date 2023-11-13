@@ -161,7 +161,12 @@ class FPT(nn.Module):
         pred = self.predictor(cls_token)
         
         loss = utils.root_mean_squared_error(gt, pred)
+        
+        print("Got gt of", gt, "pred", pred, "loss", loss)
+        
+        
         return loss
+    
     
     def forward(self, x, attention_mask, gt):
         # TODO also change the Time2Vec embedding class to never worry abt modulus other than 1

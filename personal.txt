@@ -35,6 +35,36 @@ up/stay/down may work also
 - Eventually include arbritrage, so the deep learning model automatically detects when to arb different products even
  on different markets
 
+random notes todo
+
+ first make a plan with sasmit. and make him read papers properly, even outside of finance.
+
+clean up the code with unneccesary variables/prints. keep the debugging stuff though.
+
+include ticker embedding!
+
+try baseline of predicting 0 for each gt...what output do you get ther?
+
+think of features that may help predictive power, since that's biggest bottleneck.
+
+what if for the skip connections, we add gating units (i.e. learnable scalars initialized to 1) that multiply with the skip and the feedforward / transformer to make it easier to learn? Swiglu might do this under the hood.
+
+also print distribution of losses--if some are very close to 0, 
+
+then we may want to eventually get the embedding of these and see if a linear probe/MLP every 25 steps on them can tell us if the model is confident or not. We care about this anyway!
+
+You can train this probe to predict if the ticker will go up by more than 5%, less than 5%, or neither thru softmax, cross entropy. Then, we just track the actual accuracy for each category for going up by 4%+, down by 4%+, or neither (1% margin of error). THIS is the number we care about at the end of the day! I.e. P(stock goes up by more than 4% | model said it'll go up by +4%) for each category.
+
+increase batch size
+grad clipping
+lr warmup
+weight decay and dropout
+change adam momentum beta1 parameter so takes newer gradients more into account. beta2 for variance probably not worth changing.
+
+in the promising 2048batch one, print out the attention weights for each token in each layer, and see if the recent datapoints' one is the most relevant (this means its working).
+
+also for another feature can feed another 2-3 stocks historical data, and also include a token for just the cosine similarity of that stock and the current one so the model knows how useful it is.
+
 To-Do for the MVP:
 - just preprocess the entire dataset and convert all the numbers into something that a torch dataloader can access
 - make sure the indexing means we font include the gt date in the training data. ie < start, and not <= start

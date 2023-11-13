@@ -10,7 +10,7 @@ from dataset_factory import FinancialDataset
 
 '''
 cmd to run
-conda activate spder_compr
+conda activate /home/katop1234/miniconda3/envs/spder_compr
 cd /data/katop1234/FPT2/
 export CUDA_VISIBLE_DEVICES=1
 CUDA_VISIBLE_DEVICES=1
@@ -20,7 +20,7 @@ python3 main.py
 # Hyperparameters
 num_steps = 1000
 total_batch_size = 4096
-batch_size_per_gpu = 128
+batch_size_per_gpu = 256
 lr = 1e-6
 input_dim = 256
 embed_dim = 256
